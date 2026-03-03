@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 )
 
 // --- Image download ---
@@ -63,6 +65,44 @@ func (c *Channel) sendFile(ctx context.Context, chatID, receiveIDType, fileKey, 
 		return fmt.Errorf("feishu send file: %w", err)
 	}
 	return nil
+}
+
+// --- Outbound media ---
+
+// sendMediaAttachment uploads and sends a media attachment (image or file).
+func (c *Channel) sendMediaAttachment(ctx context.Context, chatID, receiveIDType string, media bus.MediaAttachment) error {
+	filePath := media.URL
+	if filePath == "" {
+		return nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open media file %s: %w", filePath, err)
+	}
+	defer f.Close()
+
+	ct := media.ContentType
+	if isImageContentType(ct) {
+		imageKey, err := c.uploadImage(ctx, f)
+		if err != nil {
+			return fmt.Errorf("upload image: %w", err)
+		}
+		return c.sendImage(ctx, chatID, receiveIDType, imageKey)
+	}
+
+	// Everything else: upload as file
+	fileName := filepath.Base(filePath)
+	fileType := detectFileType(fileName)
+	fileKey, err := c.uploadFile(ctx, f, fileName, fileType, 0)
+	if err != nil {
+		return fmt.Errorf("upload file: %w", err)
+	}
+	return c.sendFile(ctx, chatID, receiveIDType, fileKey, "file")
+}
+
+func isImageContentType(ct string) bool {
+	return strings.HasPrefix(ct, "image/") || ct == "image"
 }
 
 // --- Media helpers ---

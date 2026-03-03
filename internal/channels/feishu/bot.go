@@ -145,8 +145,15 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 		}
 	}
 
-	// 10. Publish to bus
-	c.HandleMessage(mc.SenderID, chatID, content, nil, metadata, peerKind)
+	// 10. Resolve inbound media (image, file, audio, video, sticker)
+	var mediaPaths []string
+	switch mc.ContentType {
+	case "image", "file", "audio", "video", "sticker":
+		mediaPaths = c.resolveMediaFromMessage(ctx, mc.MessageID, mc.ContentType, msg.Content)
+	}
+
+	// 11. Publish to bus
+	c.HandleMessage(mc.SenderID, chatID, content, mediaPaths, metadata, peerKind)
 
 	// Clear pending history after sending to agent.
 	if mc.ChatType == "group" {

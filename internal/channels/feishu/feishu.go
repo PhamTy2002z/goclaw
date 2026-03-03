@@ -136,39 +136,50 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		return fmt.Errorf("empty chat ID for feishu send")
 	}
 
-	text := msg.Content
-	if text == "" {
-		return nil
-	}
-
-	// Resolve render mode
-	renderMode := c.cfg.RenderMode
-	if renderMode == "" {
-		renderMode = "auto"
-	}
-
-	useCard := false
-	switch renderMode {
-	case "card":
-		useCard = true
-	case "auto":
-		useCard = shouldUseCard(text)
-	}
-
-	chunkLimit := c.cfg.TextChunkLimit
-	if chunkLimit <= 0 {
-		chunkLimit = defaultTextChunkLimit
-	}
-
 	// Determine receive_id_type
 	receiveIDType := resolveReceiveIDType(chatID)
 
-	// Send as card or text
-	if useCard {
-		return c.sendMarkdownCard(ctx, chatID, receiveIDType, text, nil)
+	// Send text content
+	text := msg.Content
+	if text != "" {
+		// Resolve render mode
+		renderMode := c.cfg.RenderMode
+		if renderMode == "" {
+			renderMode = "auto"
+		}
+
+		useCard := false
+		switch renderMode {
+		case "card":
+			useCard = true
+		case "auto":
+			useCard = shouldUseCard(text)
+		}
+
+		chunkLimit := c.cfg.TextChunkLimit
+		if chunkLimit <= 0 {
+			chunkLimit = defaultTextChunkLimit
+		}
+
+		if useCard {
+			if err := c.sendMarkdownCard(ctx, chatID, receiveIDType, text, nil); err != nil {
+				return err
+			}
+		} else {
+			if err := c.sendChunkedText(ctx, chatID, receiveIDType, text, chunkLimit); err != nil {
+				return err
+			}
+		}
 	}
 
-	return c.sendChunkedText(ctx, chatID, receiveIDType, text, chunkLimit)
+	// Send media attachments
+	for _, media := range msg.Media {
+		if err := c.sendMediaAttachment(ctx, chatID, receiveIDType, media); err != nil {
+			slog.Warn("feishu send media failed", "url", media.URL, "error", err)
+		}
+	}
+
+	return nil
 }
 
 // --- Connection modes ---
