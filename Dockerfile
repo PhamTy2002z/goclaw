@@ -39,15 +39,18 @@ FROM alpine:3.22
 ARG ENABLE_SANDBOX=false
 ARG ENABLE_PYTHON=false
 
-# Install ca-certificates + wget (healthcheck) + optionally docker-cli (sandbox) + python3
+# Install ca-certificates + wget (healthcheck) + optionally docker-cli (sandbox)
+# + python3 with common skill packages + nodejs for JS-based skills
 RUN set -eux; \
     apk add --no-cache ca-certificates wget; \
     if [ "$ENABLE_SANDBOX" = "true" ]; then \
         apk add --no-cache docker-cli; \
     fi; \
     if [ "$ENABLE_PYTHON" = "true" ]; then \
-        apk add --no-cache python3 py3-pip; \
-        pip3 install --break-system-packages pypdf; \
+        apk add --no-cache python3 py3-pip nodejs npm pandoc github-cli; \
+        pip3 install --break-system-packages \
+            pypdf openpyxl pandas python-pptx markitdown; \
+        npm install -g docx pptxgenjs; \
     fi
 
 # Non-root user
