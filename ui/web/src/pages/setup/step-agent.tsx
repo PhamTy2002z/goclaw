@@ -22,10 +22,11 @@ const DEFAULT_PROMPT = `You are GoClaw, my helpful assistant. I am your boss, Ne
 interface StepAgentProps {
   provider: ProviderData | null;
   model: string | null;
+  onBack?: () => void;
   onComplete: (agent: AgentData) => void;
 }
 
-export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
+export function StepAgent({ provider, model, onBack, onComplete }: StepAgentProps) {
   const { t } = useTranslation("setup");
   const { createAgent, deleteAgent, resummonAgent } = useAgents();
 
@@ -214,7 +215,12 @@ export function StepAgent({ provider, model, onComplete }: StepAgentProps) {
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <div className="flex justify-end">
+            <div className={`flex ${onBack ? "justify-between" : "justify-end"} gap-2`}>
+              {onBack && (
+                <Button variant="secondary" onClick={onBack}>
+                  ← {t("common.back")}
+                </Button>
+              )}
               <Button
                 onClick={handleCreate}
                 disabled={loading || !agentKey.trim() || !isValidSlug(agentKey) || !description.trim()}
