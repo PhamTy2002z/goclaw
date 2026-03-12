@@ -26,9 +26,10 @@ interface StepChannelProps {
   onBack?: () => void;
   onComplete: () => void;
   onSkip: () => void;
+  onBack?: () => void;
 }
 
-export function StepChannel({ agent, onBack, onComplete, onSkip }: StepChannelProps) {
+export function StepChannel({ agent, onComplete, onSkip, onBack }: StepChannelProps) {
   const { t } = useTranslation("setup");
   const { createInstance } = useChannelInstances();
 

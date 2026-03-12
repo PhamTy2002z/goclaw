@@ -481,7 +481,13 @@ func runGateway() {
 	if globalSkillsDir == "" {
 		globalSkillsDir = filepath.Join(config.ExpandHome("~/.goclaw"), "skills")
 	}
-	skillsLoader := skills.NewLoader(workspace, globalSkillsDir, "")
+	// Bundled skills: shipped with the Docker image at /app/bundled-skills/.
+	// Lowest priority — managed (skills-store) and user-uploaded skills override these.
+	builtinSkillsDir := os.Getenv("GOCLAW_BUILTIN_SKILLS_DIR")
+	if builtinSkillsDir == "" {
+		builtinSkillsDir = "/app/bundled-skills"
+	}
+	skillsLoader := skills.NewLoader(workspace, globalSkillsDir, builtinSkillsDir)
 	skillSearchTool := tools.NewSkillSearchTool(skillsLoader)
 	toolsReg.Register(skillSearchTool)
 	toolsReg.Register(tools.NewUseSkillTool())
@@ -494,6 +500,47 @@ func runGateway() {
 		if len(storeDirs) > 0 {
 			skillsLoader.SetManagedDir(storeDirs[0])
 			slog.Info("skills-store directory wired into loader", "dir", storeDirs[0])
+
+			// Seed system/bundled skills into DB
+			bundledSkillsDir := os.Getenv("GOCLAW_BUNDLED_SKILLS_DIR")
+			if bundledSkillsDir == "" {
+				// Check common locations: Docker default, then local dev
+				for _, candidate := range []string{"bundled-skills", "/app/bundled-skills", "skills"} {
+					if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+						bundledSkillsDir = candidate
+						break
+					}
+				}
+			}
+			if bundledSkillsDir != "" {
+				if pgSkills, ok := pgStores.Skills.(*pg.PGSkillStore); ok {
+					seeder := skills.NewSeeder(bundledSkillsDir, storeDirs[0], pgSkills)
+					seeded, skipped, seededSkills, err := seeder.Seed(context.Background())
+					if err != nil {
+						slog.Warn("system skills seed failed", "error", err)
+					} else {
+						if seeded > 0 {
+							slog.Info("system skills seeded", "seeded", seeded, "skipped", skipped)
+						}
+						// Check dependencies asynchronously — does not block startup.
+						// Emits WS events per-skill so UI updates in realtime.
+						if len(seededSkills) > 0 {
+							seeder.CheckDepsAsync(seededSkills, msgBus)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Publish skill tool — lets agents register created skills in the database
+	if pgStores.Skills != nil {
+		if pgSkills, ok := pgStores.Skills.(*pg.PGSkillStore); ok {
+			storeDirs := pgStores.Skills.Dirs()
+			if len(storeDirs) > 0 {
+				toolsReg.Register(tools.NewPublishSkillTool(pgSkills, storeDirs[0], skillsLoader))
+				slog.Info("publish_skill tool registered")
+			}
 		}
 	}
 

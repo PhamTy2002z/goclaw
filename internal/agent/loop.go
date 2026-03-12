@@ -259,6 +259,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	}
 	if len(audioRefs) > 0 {
 		ctx = tools.WithMediaAudioRefs(ctx, audioRefs)
+		// Embed media IDs into <media:audio> tags so LLM can reference them.
+		l.enrichAudioIDs(messages, mediaRefs)
 	}
 
 	// 2d. Collect video MediaRefs (historical + current) for read_video tool.
@@ -277,6 +279,8 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 	}
 	if len(videoRefs) > 0 {
 		ctx = tools.WithMediaVideoRefs(ctx, videoRefs)
+		// Embed media IDs into <media:video> tags so LLM can reference them.
+		l.enrichVideoIDs(messages, mediaRefs)
 	}
 
 	// 2e. Cross-session recovery: notify team leads about orphaned pending tasks

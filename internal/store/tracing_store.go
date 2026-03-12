@@ -96,12 +96,13 @@ type SpanData struct {
 
 // TraceListOpts configures trace listing.
 type TraceListOpts struct {
-	AgentID       *uuid.UUID
-	UserID        string
-	SessionKey    string
-	Status        string
-	Limit int
-	Offset        int
+	AgentID    *uuid.UUID
+	UserID     string
+	SessionKey string
+	Status     string
+	Channel    string
+	Limit      int
+	Offset     int
 }
 
 // CostSummaryOpts configures cost aggregation queries.
@@ -131,6 +132,7 @@ type TracingStore interface {
 	CreateSpan(ctx context.Context, span *SpanData) error
 	UpdateSpan(ctx context.Context, spanID uuid.UUID, updates map[string]any) error
 	GetTraceSpans(ctx context.Context, traceID uuid.UUID) ([]SpanData, error)
+	ListChildTraces(ctx context.Context, parentTraceID uuid.UUID) ([]TraceData, error)
 
 	// Batch operations (async flush)
 	BatchCreateSpans(ctx context.Context, spans []SpanData) error
