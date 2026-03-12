@@ -214,6 +214,8 @@ func (dm *DelegateManager) autoCompleteTeamTask(task *DelegationTask, resultCont
 	} else {
 		slog.Info("delegate: auto-completed team task",
 			"task_id", task.TeamTaskID, "delegation_id", task.ID)
+		// Archive workspace files linked to this completed task (pinned files are immune).
+		_ = dm.teamStore.ArchiveWorkspaceFilesByTask(context.Background(), task.TeamTaskID)
 		// Task done — flush delegate sessions
 		dm.flushCompletedSessions()
 

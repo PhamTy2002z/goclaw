@@ -78,6 +78,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		ctx = tools.WithSandboxConfig(ctx, l.sandboxCfg)
 	}
 
+	// Workspace scope propagation (delegation origin → workspace tools).
+	if req.WorkspaceChannel != "" {
+		ctx = tools.WithWorkspaceChannel(ctx, req.WorkspaceChannel)
+	}
+	if req.WorkspaceChatID != "" {
+		ctx = tools.WithWorkspaceChatID(ctx, req.WorkspaceChatID)
+	}
+
 	// Per-user workspace isolation.
 	// Workspace path comes from user_agent_profiles (includes channel segment
 	// for cross-channel isolation). Cached in userWorkspaces to avoid repeated DB queries.

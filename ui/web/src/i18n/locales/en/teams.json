@@ -21,6 +21,7 @@
       "tasks": "Tasks",
       "members": "Members",
       "delegations": "Delegations",
+      "workspace": "Workspace",
       "settings": "Settings"
     }
   },
@@ -84,6 +85,25 @@
       "status": "Status",
       "duration": "Duration",
       "time": "Time"
+    }
+  },
+  "workspace": {
+    "title": "Workspace",
+    "noFiles": "No workspace files yet",
+    "noFilesDescription": "Files are created by team agents during collaboration.",
+    "refresh": "Refresh",
+    "delete": "Delete",
+    "confirmDelete": "Delete this file?",
+    "columns": {
+      "fileName": "File Name",
+      "size": "Size",
+      "uploadedBy": "Uploaded By",
+      "scope": "Scope",
+      "updated": "Updated"
+    },
+    "detail": {
+      "title": "File Content",
+      "empty": "File is empty or binary"
     }
   },
   "settings": {

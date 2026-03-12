@@ -113,6 +113,13 @@ const (
 	MethodTeamsKnownUsers    = "teams.known_users"
 )
 
+// Team workspace
+const (
+	MethodTeamsWorkspaceList   = "teams.workspace.list"
+	MethodTeamsWorkspaceRead   = "teams.workspace.read"
+	MethodTeamsWorkspaceDelete = "teams.workspace.delete"
+)
+
 // Delegation history
 const (
 	MethodDelegationsList = "delegations.list"

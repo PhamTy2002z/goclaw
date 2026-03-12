@@ -239,6 +239,46 @@ func (dm *DelegateManager) injectDependencyResults(ctx context.Context, opts *De
 	}
 }
 
+// injectWorkspaceContext lists workspace files and prepends metadata to opts.Context.
+// Uses task.OriginChannel/OriginChatID (not ToolChannelFromCtx which returns "delegate").
+func (dm *DelegateManager) injectWorkspaceContext(ctx context.Context, task *DelegationTask, opts *DelegateOpts) {
+	if dm.teamStore == nil || task.TeamID == uuid.Nil {
+		return
+	}
+	channel := task.OriginChannel
+	chatID := task.OriginChatID
+	if channel == "" {
+		channel = ToolChannelFromCtx(ctx)
+		chatID = ToolChatIDFromCtx(ctx)
+	}
+
+	files, err := dm.teamStore.ListWorkspaceFiles(ctx, task.TeamID, channel, chatID)
+	if err != nil || len(files) == 0 {
+		return
+	}
+
+	var lines []string
+	for _, f := range files {
+		tag := ""
+		if f.Pinned {
+			tag = " [pinned]"
+		}
+		for _, t := range f.Tags {
+			tag += " [" + t + "]"
+		}
+		lines = append(lines, fmt.Sprintf("- %s (%s, %d bytes, by %s)%s",
+			f.FileName, f.MimeType, f.SizeBytes, f.UploadedByKey, tag))
+	}
+	wsCtx := "--- Team workspace files (use workspace_read to access) ---\n" +
+		strings.Join(lines, "\n")
+
+	if opts.Context != "" {
+		opts.Context = wsCtx + "\n\n" + opts.Context
+	} else {
+		opts.Context = wsCtx
+	}
+}
+
 // sendProgressNotification sends a grouped "still working" message listing all
 // active delegations from the same source agent. Uses progressSent to dedup —
 // concurrent tickers only send one notification per cycle, then release for next tick.
@@ -354,6 +394,11 @@ func (dm *DelegateManager) buildRunRequest(task *DelegationTask, message string)
 		TeamTaskID:    func() string { if task.TeamTaskID != uuid.Nil { return task.TeamTaskID.String() }; return "" }(),
 		ParentAgentID: task.SourceAgentKey,
 	}
+
+	// Propagate workspace scope (origin channel) to delegate so workspace tools
+	// write to the origin conversation scope, not the "delegate" channel.
+	req.WorkspaceChannel = task.OriginChannel
+	req.WorkspaceChatID = task.OriginChatID
 
 	// Propagate parent's recent image media to delegate for vision context.
 	if dm.mediaLoader != nil && dm.sessionStore != nil && task.OriginSessionKey != "" {

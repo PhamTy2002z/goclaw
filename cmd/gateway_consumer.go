@@ -16,6 +16,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -809,6 +810,31 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 				appendMediaToOutbound(&outMsg, outcome.Result.Media)
 				msgBus.PublishOutbound(outMsg)
 			}(origChannel, msg.ChatID, msg.SenderID, outMeta)
+			continue
+		}
+
+		// --- Command: /reset — clear session history ---
+		if msg.Metadata["command"] == "reset" {
+			agentID := msg.AgentID
+			if agentID == "" {
+				agentID = resolveAgentRoute(cfg, msg.Channel, msg.ChatID, msg.PeerKind)
+			}
+			peerKind := msg.PeerKind
+			if peerKind == "" {
+				peerKind = string(sessions.PeerDirect)
+			}
+			sessionKey := sessions.BuildScopedSessionKey(agentID, msg.Channel, sessions.PeerKind(peerKind), msg.ChatID, cfg.Sessions.Scope, cfg.Sessions.DmScope, cfg.Sessions.MainKey)
+			if msg.Metadata["is_forum"] == "true" && peerKind == string(sessions.PeerGroup) {
+				var topicID int
+				fmt.Sscanf(msg.Metadata["message_thread_id"], "%d", &topicID)
+				if topicID > 0 {
+					sessionKey = sessions.BuildGroupTopicSessionKey(agentID, msg.Channel, msg.ChatID, topicID)
+				}
+			}
+			sessStore.Reset(sessionKey)
+			sessStore.Save(sessionKey)
+			providers.ResetCLISession("", sessionKey)
+			slog.Info("inbound: /reset command", "session", sessionKey)
 			continue
 		}
 

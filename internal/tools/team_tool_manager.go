@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -68,9 +69,11 @@ func (m *TeamToolManager) resolveTeam(ctx context.Context) (*store.TeamData, uui
 	// Cache miss → DB
 	team, err := m.teamStore.GetTeamForAgent(ctx, agentID)
 	if err != nil {
+		slog.Warn("workspace: resolveTeam DB error", "agent_id", agentID, "error", err)
 		return nil, uuid.Nil, fmt.Errorf("failed to resolve team: %w", err)
 	}
 	if team == nil {
+		slog.Warn("workspace: agent has no team", "agent_id", agentID)
 		return nil, uuid.Nil, fmt.Errorf("this agent is not part of any team")
 	}
 
@@ -134,6 +137,25 @@ func (m *TeamToolManager) broadcastTeamEvent(name string, payload any) {
 		Name:    name,
 		Payload: payload,
 	})
+}
+
+// resolveTeamRole returns the calling agent's role in the team.
+// Unlike requireLead(), this does NOT bypass for delegate channel —
+// workspace RBAC must respect actual roles even during delegation.
+func (m *TeamToolManager) resolveTeamRole(ctx context.Context, team *store.TeamData, agentID uuid.UUID) (string, error) {
+	if agentID == team.LeadAgentID {
+		return store.TeamRoleLead, nil
+	}
+	members, err := m.teamStore.ListMembers(ctx, team.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve team role: %w", err)
+	}
+	for _, member := range members {
+		if member.AgentID == agentID {
+			return member.Role, nil
+		}
+	}
+	return "", fmt.Errorf("agent is not a member of this team")
 }
 
 // agentDisplayName returns the display name for an agent key, falling back to empty string.

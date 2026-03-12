@@ -152,8 +152,10 @@ func (s *PGTeamStore) GetTeamForAgent(ctx context.Context, agentID uuid.UUID) (*
 	row := s.db.QueryRowContext(ctx,
 		`SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.created_at, t.updated_at
 		 FROM agent_teams t
-		 JOIN agent_team_members m ON m.team_id = t.id
-		 WHERE m.agent_id = $1 AND t.status = $2
+		 WHERE (
+		   t.lead_agent_id = $1
+		   OR EXISTS (SELECT 1 FROM agent_team_members m WHERE m.team_id = t.id AND m.agent_id = $1)
+		 ) AND t.status = $2
 		 LIMIT 1`, agentID, store.TeamStatusActive)
 
 	d, err := scanTeamRow(row)

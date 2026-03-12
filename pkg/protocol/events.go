@@ -51,6 +51,9 @@ const (
 	EventTeamMemberAdded   = "team.member.added"
 	EventTeamMemberRemoved = "team.member.removed"
 
+	// Workspace events (team file changes).
+	EventWorkspaceFileChanged = "workspace.file.changed"
+
 	// Agent link events (admin operations).
 	EventAgentLinkCreated = "agent_link.created"
 	EventAgentLinkUpdated = "agent_link.updated"

@@ -136,6 +136,9 @@ export const Methods = {
   TEAMS_MEMBERS_REMOVE: "teams.members.remove",
   TEAMS_UPDATE: "teams.update",
   TEAMS_KNOWN_USERS: "teams.known_users",
+  TEAMS_WORKSPACE_LIST: "teams.workspace.list",
+  TEAMS_WORKSPACE_READ: "teams.workspace.read",
+  TEAMS_WORKSPACE_DELETE: "teams.workspace.delete",
 
   // Delegation history
   DELEGATIONS_LIST: "delegations.list",
@@ -192,6 +195,9 @@ export const Events = {
   TEAM_MEMBER_ADDED: "team.member.added",
   TEAM_MEMBER_REMOVED: "team.member.removed",
 
+  // Workspace
+  WORKSPACE_FILE_CHANGED: "workspace.file.changed",
+
   // Agent links
   AGENT_LINK_CREATED: "agent_link.created",
   AGENT_LINK_UPDATED: "agent_link.updated",
@@ -215,6 +221,7 @@ export const TEAM_RELATED_EVENTS: Set<string> = new Set([
   Events.AGENT_LINK_CREATED, Events.AGENT_LINK_UPDATED,
   Events.AGENT_LINK_DELETED,
   Events.AGENT,
+  Events.WORKSPACE_FILE_CHANGED,
 ]);
 
 // Agent event subtypes (in payload.type)

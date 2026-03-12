@@ -47,6 +47,9 @@ func (m *TeamsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodTeamsMembersRemove, m.handleRemoveMember)
 	router.Register(protocol.MethodTeamsUpdate, m.handleUpdate)
 	router.Register(protocol.MethodTeamsKnownUsers, m.handleKnownUsers)
+
+	// Workspace handlers
+	m.RegisterWorkspace(router)
 }
 
 // --- List ---

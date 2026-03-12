@@ -21,6 +21,7 @@
       "tasks": "任务",
       "members": "成员",
       "delegations": "委托",
+      "workspace": "工作空间",
       "settings": "设置"
     }
   },
@@ -84,6 +85,25 @@
       "status": "状态",
       "duration": "耗时",
       "time": "时间"
+    }
+  },
+  "workspace": {
+    "title": "工作空间",
+    "noFiles": "暂无工作空间文件",
+    "noFilesDescription": "文件由TeamAgent在协作过程中创建。",
+    "refresh": "刷新",
+    "delete": "删除",
+    "confirmDelete": "删除此文件？",
+    "columns": {
+      "fileName": "文件名",
+      "size": "大小",
+      "uploadedBy": "上传者",
+      "scope": "范围",
+      "updated": "更新时间"
+    },
+    "detail": {
+      "title": "文件内容",
+      "empty": "文件为空或为二进制文件"
     }
   },
   "settings": {

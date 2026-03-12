@@ -21,6 +21,7 @@
       "tasks": "Nhiệm vụ",
       "members": "Thành viên",
       "delegations": "Ủy quyền",
+      "workspace": "Không gian làm việc",
       "settings": "Cài đặt"
     }
   },
@@ -84,6 +85,25 @@
       "status": "Trạng thái",
       "duration": "Thời lượng",
       "time": "Thời gian"
+    }
+  },
+  "workspace": {
+    "title": "Không gian làm việc",
+    "noFiles": "Chưa có file trong workspace",
+    "noFilesDescription": "File được tạo bởi agent nhóm trong quá trình cộng tác.",
+    "refresh": "Làm mới",
+    "delete": "Xóa",
+    "confirmDelete": "Xóa file này?",
+    "columns": {
+      "fileName": "Tên file",
+      "size": "Kích thước",
+      "uploadedBy": "Người tải lên",
+      "scope": "Phạm vi",
+      "updated": "Cập nhật"
+    },
+    "detail": {
+      "title": "Nội dung file",
+      "empty": "File trống hoặc là file nhị phân"
     }
   },
   "settings": {

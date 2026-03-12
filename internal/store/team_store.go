@@ -3,10 +3,14 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ErrFileLocked is returned when a workspace file is being written by another agent.
+var ErrFileLocked = errors.New("file is being written by another agent, try again shortly")
 
 // Team status constants.
 const (
@@ -155,6 +159,55 @@ type TeamMessageData struct {
 	ToAgentKey   string `json:"to_agent_key,omitempty"`
 }
 
+// TeamWorkspaceFileData represents a file in the team's shared workspace.
+type TeamWorkspaceFileData struct {
+	ID         uuid.UUID       `json:"id"`
+	TeamID     uuid.UUID       `json:"team_id"`
+	Channel    string          `json:"channel"`
+	ChatID     string          `json:"chat_id"`
+	FileName   string          `json:"file_name"`
+	MimeType   string          `json:"mime_type,omitempty"`
+	FilePath   string          `json:"-"`
+	SizeBytes  int64           `json:"size_bytes"`
+	UploadedBy uuid.UUID       `json:"uploaded_by"`
+	TaskID     *uuid.UUID      `json:"task_id,omitempty"`
+	Pinned     bool            `json:"pinned"`
+	Tags       []string        `json:"tags,omitempty"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
+	ArchivedAt *time.Time      `json:"archived_at,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+
+	// Joined
+	UploadedByKey string `json:"uploaded_by_key,omitempty"`
+}
+
+// TeamWorkspaceFileVersionData represents a version of a workspace file.
+type TeamWorkspaceFileVersionData struct {
+	ID         uuid.UUID `json:"id"`
+	FileID     uuid.UUID `json:"file_id"`
+	Version    int       `json:"version"`
+	FilePath   string    `json:"-"`
+	SizeBytes  int64     `json:"size_bytes"`
+	UploadedBy uuid.UUID `json:"uploaded_by"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	// Joined
+	UploadedByKey string `json:"uploaded_by_key,omitempty"`
+}
+
+// TeamWorkspaceCommentData represents a comment on a workspace file.
+type TeamWorkspaceCommentData struct {
+	ID        uuid.UUID `json:"id"`
+	FileID    uuid.UUID `json:"file_id"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+
+	// Joined
+	AgentKey string `json:"agent_key,omitempty"`
+}
+
 // TeamStore manages agent teams, tasks, and messages.
 type TeamStore interface {
 	// Team CRUD
@@ -224,4 +277,33 @@ type TeamStore interface {
 	MarkRead(ctx context.Context, messageID uuid.UUID) error
 	// ListMessages returns paginated team messages ordered by created_at DESC.
 	ListMessages(ctx context.Context, teamID uuid.UUID, limit, offset int) ([]TeamMessageData, int, error)
+
+	// Workspace files
+	// UpsertWorkspaceFile acquires an advisory lock, calls diskWriteFn (if non-nil)
+	// to perform disk I/O under that lock, then upserts DB metadata — all within one tx.
+	// diskWriteFn receives isNew (true if this is a new file, false if update).
+	UpsertWorkspaceFile(ctx context.Context, file *TeamWorkspaceFileData, diskWriteFn func(isNew bool) error) (isNew bool, err error)
+	GetWorkspaceFile(ctx context.Context, teamID uuid.UUID, channel, chatID, fileName string) (*TeamWorkspaceFileData, error)
+	ListWorkspaceFiles(ctx context.Context, teamID uuid.UUID, channel, chatID string) ([]TeamWorkspaceFileData, error)
+	DeleteWorkspaceFile(ctx context.Context, teamID uuid.UUID, channel, chatID, fileName string) (filePath string, err error)
+	CountWorkspaceFiles(ctx context.Context, teamID uuid.UUID, channel, chatID string) (int, error)
+	PinWorkspaceFile(ctx context.Context, teamID uuid.UUID, channel, chatID, fileName string, pinned bool) error
+	TagWorkspaceFile(ctx context.Context, teamID uuid.UUID, channel, chatID, fileName string, tags []string) error
+	ListDeliverableFiles(ctx context.Context, teamID uuid.UUID, channel, chatID string) ([]TeamWorkspaceFileData, error)
+	ArchiveWorkspaceFilesByTask(ctx context.Context, taskID uuid.UUID) error
+	ListOrphanWorkspaceFiles(ctx context.Context, teamID uuid.UUID, olderThan time.Time) ([]TeamWorkspaceFileData, error)
+	CopyFilesToTeam(ctx context.Context, fileIDs []uuid.UUID, targetTeamID uuid.UUID, targetChannel, targetChatID, dataDir string) error
+
+	// Workspace versioning
+	CreateFileVersion(ctx context.Context, version *TeamWorkspaceFileVersionData) error
+	ListFileVersions(ctx context.Context, fileID uuid.UUID) ([]TeamWorkspaceFileVersionData, error)
+	GetFileVersion(ctx context.Context, fileID uuid.UUID, version int) (*TeamWorkspaceFileVersionData, error)
+	PruneOldVersions(ctx context.Context, fileID uuid.UUID, keepN int) ([]string, error) // returns pruned file paths
+
+	// Workspace comments
+	AddFileComment(ctx context.Context, comment *TeamWorkspaceCommentData) error
+	ListFileComments(ctx context.Context, fileID uuid.UUID) ([]TeamWorkspaceCommentData, error)
+
+	// Workspace quota
+	GetWorkspaceTotalSize(ctx context.Context, teamID uuid.UUID) (int64, error)
 }

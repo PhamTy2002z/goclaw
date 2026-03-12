@@ -11,6 +11,7 @@ import { TeamMembersTab } from "./team-members-tab";
 import { TeamTasksTab } from "./team-tasks-tab";
 import { TeamDelegationsTab } from "./team-delegations-tab";
 import { TeamSettingsTab } from "./team-settings-tab";
+import { TeamWorkspaceTab } from "./team-workspace-tab";
 import type { TeamData, TeamMemberData } from "@/types/team";
 
 interface TeamDetailPageProps {
@@ -67,7 +68,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
   }, [teamId, removeMember, reload]);
 
   if (loading || !team) {
-    return <DetailPageSkeleton tabs={4} />;
+    return <DetailPageSkeleton tabs={5} />;
   }
 
   return (
@@ -121,6 +122,7 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
             <TabsTrigger value="members">{t("detail.tabs.members")}</TabsTrigger>
             <TabsTrigger value="tasks">{t("detail.tabs.tasks")}</TabsTrigger>
             <TabsTrigger value="delegations">{t("detail.tabs.delegations")}</TabsTrigger>
+            <TabsTrigger value="workspace">{t("detail.tabs.workspace")}</TabsTrigger>
             <TabsTrigger value="settings">{t("detail.tabs.settings")}</TabsTrigger>
           </TabsList>
 
@@ -139,6 +141,10 @@ export function TeamDetailPage({ teamId, onBack }: TeamDetailPageProps) {
 
           <TabsContent value="delegations" className="mt-4">
             <TeamDelegationsTab teamId={teamId} />
+          </TabsContent>
+
+          <TabsContent value="workspace" className="mt-4">
+            <TeamWorkspaceTab teamId={teamId} />
           </TabsContent>
 
           <TabsContent value="settings" className="mt-4">
