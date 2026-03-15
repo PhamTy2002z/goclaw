@@ -237,9 +237,10 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent changing owner_id
+	// Prevent changing owner_id; always enforce restrict_to_workspace
 	delete(updates, "owner_id")
 	delete(updates, "id")
+	updates["restrict_to_workspace"] = true
 
 	if err := h.agents.Update(r.Context(), id, updates); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

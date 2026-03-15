@@ -116,10 +116,10 @@ func (h *StorageHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil
 		}
-		rel, _ := filepath.Rel(h.baseDir, path)
-		if rel == "." {
+		if path == rootDir {
 			return nil
 		}
+		rel, _ := filepath.Rel(h.baseDir, path)
 
 		// Skip symlinks
 		if d.Type()&os.ModeSymlink != 0 {
