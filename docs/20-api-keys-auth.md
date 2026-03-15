@@ -284,5 +284,5 @@ curl -X POST -H "Authorization: Bearer gateway-admin-token" \
 | `internal/gateway/methods/api_keys.go` | WebSocket RPC methods |
 | `internal/permissions/policy.go` | RBAC policy engine |
 | `internal/permissions/scope.go` | Scope constants + RoleFromScopes |
-| `migrations/000019_api_keys.up.sql` | Database migration |
+| `migrations/000020_api_keys.up.sql` | Database migration |
 | `ui/web/src/pages/api-keys/` | Web UI components |

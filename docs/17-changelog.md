@@ -13,7 +13,7 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 - **RBAC scopes**: `operator.admin`, `operator.read`, `operator.write`, `operator.approvals`, `operator.pairing`
 - **HTTP + WS**: Full CRUD via `/v1/api-keys` and `api_keys.*` RPC methods
 - **Web UI**: Create dialog with scope checkboxes, expiry options, revoke confirmation
-- **Migration**: `000019_api_keys` — `api_keys` table with partial index on active key hashes
+- **Migration**: `000020_api_keys` — `api_keys` table with partial index on active key hashes
 - **Backward compatible**: Existing gateway token continues to work as admin
 
 #### Interactive API Documentation
