@@ -36,6 +36,7 @@
     "tts": "TTS",
     "usage": "用量",
     "activity": "活动日志",
-    "apiKeys": "API 密钥"
+    "apiKeys": "API 密钥",
+    "apiDocs": "API 文档"
   }
 }

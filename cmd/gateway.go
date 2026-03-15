@@ -740,6 +740,9 @@ func runGateway() {
 	}
 
 	// API key management
+	// API documentation (OpenAPI spec + Swagger UI at /docs)
+	server.SetDocsHandler(httpapi.NewDocsHandler(cfg.Gateway.Token))
+
 	if pgStores != nil && pgStores.APIKeys != nil {
 		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, cfg.Gateway.Token, msgBus))
 		server.SetAPIKeyStore(pgStores.APIKeys)

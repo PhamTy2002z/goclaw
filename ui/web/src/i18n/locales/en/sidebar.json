@@ -36,6 +36,7 @@
     "nodes": "Nodes",
     "tts": "TTS",
     "activity": "Activity",
-    "apiKeys": "API Keys"
+    "apiKeys": "API Keys",
+    "apiDocs": "API Docs"
   }
 }

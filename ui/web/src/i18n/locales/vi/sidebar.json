@@ -36,6 +36,7 @@
     "nodes": "Nodes",
     "tts": "TTS",
     "activity": "Hoạt động",
-    "apiKeys": "API Keys"
+    "apiKeys": "API Keys",
+    "apiDocs": "Tài liệu API"
   }
 }

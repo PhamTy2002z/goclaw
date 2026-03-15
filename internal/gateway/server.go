@@ -59,6 +59,7 @@ type Server struct {
 	usageHandler            *httpapi.UsageHandler            // usage analytics API
 	apiKeysHandler     *httpapi.APIKeysHandler      // API key management
 	apiKeyStore        store.APIKeyStore            // for API key auth lookup
+	docsHandler        *httpapi.DocsHandler         // OpenAPI spec + Swagger UI
 	agentStore         store.AgentStore             // for context injection in tools_invoke
 	msgBus             *bus.MessageBus              // for MCP bridge media delivery
 
@@ -260,6 +261,11 @@ func (s *Server) BuildMux() *http.ServeMux {
 
 	if s.usageHandler != nil {
 		s.usageHandler.RegisterRoutes(mux)
+	}
+
+	// API documentation (OpenAPI spec + Swagger UI)
+	if s.docsHandler != nil {
+		s.docsHandler.RegisterRoutes(mux)
 	}
 
 	// OAuth endpoints (available in all modes)
@@ -500,6 +506,9 @@ func (s *Server) SetActivityHandler(h *httpapi.ActivityHandler) { s.activityHand
 
 // SetUsageHandler sets the usage analytics handler.
 func (s *Server) SetUsageHandler(h *httpapi.UsageHandler) { s.usageHandler = h }
+
+// SetDocsHandler sets the OpenAPI spec + Swagger UI handler.
+func (s *Server) SetDocsHandler(h *httpapi.DocsHandler) { s.docsHandler = h }
 
 // SetAgentStore sets the agent store for context injection in tools_invoke.
 func (s *Server) SetAgentStore(as store.AgentStore) { s.agentStore = as }
