@@ -8,8 +8,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
+
+// apkPersistMu serializes reads/writes to the apk-packages persist file.
+var apkPersistMu sync.Mutex
 
 const installTimeout = 5 * time.Minute
 
@@ -138,6 +142,9 @@ func InstallDeps(ctx context.Context, manifest *SkillManifest, missing []string)
 // persistApkPackages appends system package names to the runtime persist file
 // so docker-entrypoint.sh can re-install them after container recreate.
 func persistApkPackages(pkgs []string) {
+	apkPersistMu.Lock()
+	defer apkPersistMu.Unlock()
+
 	runtimeDir := os.Getenv("RUNTIME_DIR")
 	if runtimeDir == "" {
 		runtimeDir = "/app/data/.runtime"
@@ -152,6 +159,69 @@ func persistApkPackages(pkgs []string) {
 	for _, pkg := range pkgs {
 		fmt.Fprintln(f, pkg)
 	}
+}
+
+// UninstallPackage removes one package (format: "pip:pkg", "npm:pkg", or plain apk name).
+// Returns (ok, errorMessage).
+func UninstallPackage(ctx context.Context, dep string) (bool, string) {
+	ctx, cancel := context.WithTimeout(ctx, installTimeout)
+	defer cancel()
+
+	slog.Info("skills: uninstalling package", "dep", dep)
+
+	var cmd *exec.Cmd
+	switch {
+	case strings.HasPrefix(dep, "pip:"):
+		pkg := strings.TrimPrefix(dep, "pip:")
+		cmd = exec.CommandContext(ctx, "pip3", "uninstall", "-y", pkg)
+	case strings.HasPrefix(dep, "npm:"):
+		pkg := strings.TrimPrefix(dep, "npm:")
+		cmd = exec.CommandContext(ctx, "npm", "uninstall", "-g", pkg)
+	default:
+		cmd = exec.CommandContext(ctx, "doas", "apk", "del", dep)
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := fmt.Sprintf("%s: %v", strings.TrimSpace(string(out)), err)
+		slog.Error("skills: uninstall failed", "dep", dep, "error", msg)
+		return false, msg
+	}
+
+	// Remove system packages from persist file.
+	if !strings.Contains(dep, ":") {
+		removeFromApkPersist(dep)
+	}
+
+	slog.Info("skills: package uninstalled", "dep", dep)
+	return true, ""
+}
+
+// removeFromApkPersist removes a package name from the apk persist file.
+func removeFromApkPersist(pkg string) {
+	apkPersistMu.Lock()
+	defer apkPersistMu.Unlock()
+
+	runtimeDir := os.Getenv("RUNTIME_DIR")
+	if runtimeDir == "" {
+		runtimeDir = "/app/data/.runtime"
+	}
+	listFile := filepath.Join(runtimeDir, "apk-packages")
+
+	data, err := os.ReadFile(listFile)
+	if err != nil {
+		return
+	}
+
+	var kept []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && line != pkg {
+			kept = append(kept, line)
+		}
+	}
+
+	os.WriteFile(listFile, []byte(strings.Join(kept, "\n")+"\n"), 0644) //nolint:errcheck
 }
 
 // cleanCaches removes pip and npm caches to save disk space.

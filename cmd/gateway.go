@@ -344,6 +344,9 @@ func runGateway() {
 		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB, cfg.Gateway.Token))
 	}
 
+	// Runtime package management (install/uninstall system/pip/npm packages)
+	server.SetPackagesHandler(httpapi.NewPackagesHandler(cfg.Gateway.Token))
+
 	// API key management
 	// API documentation (OpenAPI spec + Swagger UI at /docs)
 	server.SetDocsHandler(httpapi.NewDocsHandler(cfg.Gateway.Token))
