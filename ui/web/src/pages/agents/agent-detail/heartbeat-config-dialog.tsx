@@ -333,31 +333,6 @@ export function HeartbeatConfigDialog({
             <p className="text-xs text-muted-foreground">{t("heartbeat.scheduleHint")}</p>
           </div>
 
-          {/* ── Checklist — WHAT the agent does ── */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-3.5 w-3.5 text-emerald-500" />
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("heartbeat.checklist")}
-              </h4>
-            </div>
-            <p className="text-xs text-muted-foreground">{t("heartbeat.checklistHint")}</p>
-            {checklistLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground py-4 justify-center">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {t("heartbeat.checklistLoading")}
-              </div>
-            ) : (
-              <Textarea
-                value={checklist}
-                onChange={(e) => setChecklistState(e.target.value)}
-                placeholder={t("heartbeat.checklistPlaceholder")}
-                rows={15}
-                className="text-base md:text-sm font-mono resize-y min-h-[200px] sm:min-h-[400px]"
-              />
-            )}
-          </div>
-
           {/* ── Advanced (collapsible) ── */}
           <div className="rounded-lg border">
             <button
@@ -412,6 +387,31 @@ export function HeartbeatConfigDialog({
                   <Switch checked={lightContext} onCheckedChange={setLightContext} />
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* ── Checklist — WHAT the agent does ── */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-emerald-500" />
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("heartbeat.checklist")}
+              </h4>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("heartbeat.checklistHint")}</p>
+            {checklistLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-4 justify-center">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t("heartbeat.checklistLoading")}
+              </div>
+            ) : (
+              <Textarea
+                value={checklist}
+                onChange={(e) => setChecklistState(e.target.value)}
+                placeholder={t("heartbeat.checklistPlaceholder")}
+                rows={8}
+                className="text-base md:text-sm font-mono resize-y min-h-[120px] sm:min-h-[200px]"
+              />
             )}
           </div>
 
