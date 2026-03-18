@@ -174,7 +174,7 @@ func (sm *SubagentManager) executeTask(ctx context.Context, task *SubagentTask) 
 	}
 
 	// Emit running subagent root span (after model resolution so span has correct model).
-	sm.emitSubagentSpanStart(traceCtx, subRootSpanID, taskStart, task, model)
+	sm.emitSubagentSpanStart(traceCtx, subRootSpanID, taskStart, task, model, activeProvider.Name())
 
 	// Build subagent system prompt (matching TS buildSubagentSystemPrompt pattern).
 	workspace := ToolWorkspaceFromCtx(ctx)

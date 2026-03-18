@@ -135,23 +135,24 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 	if p.APIKey == "" {
 		return
 	}
+	apiBase := h.resolveAPIBase(p)
 	switch p.ProviderType {
 	case store.ProviderChatGPTOAuth:
 		ts := oauth.NewDBTokenSource(h.store, h.secretStore, p.Name)
-		h.providerReg.Register(providers.NewCodexProvider(p.Name, ts, p.APIBase, ""))
+		h.providerReg.Register(providers.NewCodexProvider(p.Name, ts, apiBase, ""))
 	case store.ProviderAnthropicNative:
 		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey,
-			providers.WithAnthropicBaseURL(p.APIBase)))
+			providers.WithAnthropicBaseURL(apiBase)))
 	case store.ProviderDashScope:
-		h.providerReg.Register(providers.NewDashScopeProvider(p.Name, p.APIKey, p.APIBase, ""))
+		h.providerReg.Register(providers.NewDashScopeProvider(p.Name, p.APIKey, apiBase, ""))
 	case store.ProviderBailian:
-		base := p.APIBase
+		base := apiBase
 		if base == "" {
 			base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 		}
 		h.providerReg.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
 	default:
-		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
+		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, apiBase, "")
 		if p.ProviderType == store.ProviderMiniMax {
 			prov.WithChatPath("/text/chatcompletion_v2")
 		}
