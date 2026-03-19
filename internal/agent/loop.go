@@ -1159,6 +1159,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 					Role:       "tool",
 					Content:    r.result.ForLLM,
 					ToolCallID: r.tc.ID,
+					IsError:    r.result.IsError,
 				}
 				messages = append(messages, toolMsg)
 				pendingMsgs = append(pendingMsgs, toolMsg)
