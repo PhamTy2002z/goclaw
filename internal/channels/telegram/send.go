@@ -39,6 +39,7 @@ func stripHTML(s string) string {
 }
 
 // isRetryableNetworkErr checks if a Telegram API error is a transient network error worth retrying.
+// Includes post-connect network stalls and 5xx server errors.
 func isRetryableNetworkErr(err error) bool {
 	if err == nil {
 		return false
@@ -48,7 +49,24 @@ func isRetryableNetworkErr(err error) bool {
 		strings.Contains(s, "connection reset") ||
 		strings.Contains(s, "broken pipe") ||
 		strings.Contains(s, "EOF") ||
-		strings.Contains(s, "lookup") // DNS resolution failure
+		strings.Contains(s, "lookup") || // DNS resolution failure
+		strings.Contains(s, "502") ||    // Bad Gateway
+		strings.Contains(s, "503") ||    // Service Unavailable
+		strings.Contains(s, "504")       // Gateway Timeout
+}
+
+// isPostConnectNetworkErr check if the error likely occurred AFTER reaching the server
+// (timeout, connection reset, EOF) vs before (DNS lookup failure).
+func isPostConnectNetworkErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	// Exclude "lookup" (DNS) and "connection refused" as they are safe pre-connect errors.
+	return (strings.Contains(s, "timeout") ||
+		strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "EOF")) && !strings.Contains(s, "lookup")
 }
 
 // retrySend wraps a Telegram send call with retry logic for transient network errors.
@@ -185,11 +203,33 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	startChunk := 0
 	if pID, ok := c.placeholders.Load(localKey); ok {
 		c.placeholders.Delete(localKey)
-		if err := c.editMessage(ctx, chatID, pID.(int), chunks[0]); err == nil {
-			startChunk = 1 // first chunk edited into stream message
+		msgID := pID.(int)
+
+		if msgID == -1 {
+			// SIGNAL from stream: A message transport send likely landed but ID was never retrieved.
+			// Swallow the first chunk ONLY if there are more chunks to come (minimizes visible duplicate).
+			// If it is the ONLY chunk, we deliver it anyway to guarantee the user sees the answer.
+			if len(chunks) > 1 {
+				slog.Warn("telegram: ghost message detected, skipping first chunk of multi-chunk response", "chat_id", chatID)
+				startChunk = 1
+			}
 		} else {
-			// Edit failed (message deleted externally, etc.) — delete and send all fresh
-			_ = c.deleteMessage(ctx, chatID, pID.(int))
+			err := c.editMessage(ctx, chatID, msgID, chunks[0])
+			if err == nil {
+				startChunk = 1 // first chunk edited into stream message
+			} else if isPostConnectNetworkErr(err) && len(chunks) > 1 {
+				// Mid-stream timeout/lost connection: the edit likely reached Telegram
+				// but the response was lost. Swallow and skip chunk 0 ONLY for multi-chunk
+				// messages where the rest of the answer is still coming.
+				slog.Warn("telegram: final edit timed out or lost, skipping chunk 0 of multi-chunk response",
+					"chat_id", chatID, "message_id", msgID, "error", err)
+				startChunk = 1
+			} else {
+				// Edit failed definitely (400 rejection), or a single-chunk edit timed out.
+				// For single-chunk answers, we delete (best-effort) and send fresh to
+				// guarantee the user gets the content.
+				_ = c.deleteMessage(ctx, chatID, msgID)
+			}
 		}
 	}
 
@@ -543,19 +583,22 @@ func (c *Channel) sendDocument(ctx context.Context, chatID telego.ChatID, filePa
 }
 
 // editMessage edits an existing message's text.
+// Uses retrySend since edits are idempotent and may fail on transient network issues.
 func (c *Channel) editMessage(ctx context.Context, chatID int64, messageID int, htmlText string) error {
 	editMsg := tu.EditMessageText(tu.ID(chatID), messageID, htmlText)
 	editMsg.ParseMode = telego.ModeHTML
 
-	_, err := c.bot.EditMessageText(ctx, editMsg)
-	if err != nil {
-		// Ignore "message is not modified" errors (idempotent edit)
-		if messageNotModifiedRe.MatchString(err.Error()) {
-			return nil
+	return c.retrySend(ctx, "editMessage", nil, func(ctx context.Context) error {
+		_, err := c.bot.EditMessageText(ctx, editMsg)
+		if err != nil {
+			// Ignore "message is not modified" errors (idempotent edit)
+			if messageNotModifiedRe.MatchString(err.Error()) {
+				return nil
+			}
+			return err
 		}
-		return err
-	}
-	return nil
+		return nil
+	})
 }
 
 // deleteMessage deletes a message from the chat.
