@@ -212,6 +212,7 @@ export class WsClient {
         sender_id: this.getSenderID(),
         locale: localStorage.getItem("goclaw:language") || "en",
         tenant_hint: localStorage.getItem("goclaw:tenant_hint") || "",
+        tenant_scope: localStorage.getItem("goclaw:tenant_scope") || "",
         protocolVersion: PROTOCOL_VERSION,
       });
       if (this.connectGeneration !== generation) return;

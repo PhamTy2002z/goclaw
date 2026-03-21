@@ -97,11 +97,12 @@ func (r *MethodRouter) registerDefaults() {
 func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *protocol.RequestFrame) {
 	// Parse connect params
 	var params struct {
-		Token      string `json:"token"`
-		UserID     string `json:"user_id"`
-		SenderID   string `json:"sender_id"`   // browser pairing: stored sender ID for reconnect
-		Locale     string `json:"locale"`      // user's preferred locale (en, vi, zh)
-		TenantHint string `json:"tenant_hint"` // optional tenant slug for browser pairing multi-tenant
+		Token       string `json:"token"`
+		UserID      string `json:"user_id"`
+		SenderID    string `json:"sender_id"`    // browser pairing: stored sender ID for reconnect
+		Locale      string `json:"locale"`       // user's preferred locale (en, vi, zh)
+		TenantHint  string `json:"tenant_hint"`  // optional tenant slug for browser pairing multi-tenant
+		TenantScope string `json:"tenant_scope"` // cross-tenant admin: narrow scope to specific tenant (slug)
 	}
 	if req.Params != nil {
 		json.Unmarshal(req.Params, &params)
@@ -118,6 +119,8 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		client.authenticated = true
 		client.userID = params.UserID
 		client.crossTenant = true
+		// Cross-tenant admin can narrow scope to a specific tenant
+		r.applyTenantScope(ctx, client, params.TenantScope)
 		r.sendConnectResponse(ctx, client, req.ID)
 		return
 	}
@@ -146,10 +149,13 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			}
 			if keyData.TenantID == uuid.Nil {
 				client.crossTenant = true
+				// Cross-tenant API key can narrow scope to a specific tenant
+				r.applyTenantScope(ctx, client, params.TenantScope)
 				slog.Debug("security.ws_connect_resolved",
 					"client", client.id,
 					"role", string(client.role),
-					"cross_tenant", true,
+					"cross_tenant", client.crossTenant,
+					"tenant_id", client.tenantID.String(),
 				)
 			} else {
 				client.tenantID = keyData.TenantID
@@ -272,6 +278,23 @@ func (r *MethodRouter) resolveTenantHint(ctx context.Context, hint string) uuid.
 		return store.MasterTenantID
 	}
 	return t.ID
+}
+
+// applyTenantScope narrows a cross-tenant client to a specific tenant.
+// Only applies when client is cross-tenant and scope slug is non-empty + valid.
+// After applying, client.crossTenant becomes false and client.tenantID is set.
+func (r *MethodRouter) applyTenantScope(ctx context.Context, client *Client, scopeSlug string) {
+	if scopeSlug == "" || r.tenantStore == nil {
+		return
+	}
+	t, err := r.tenantStore.GetTenantBySlug(ctx, scopeSlug)
+	if err != nil || t == nil {
+		slog.Debug("tenant_scope not resolved, keeping cross-tenant", "scope", scopeSlug)
+		return
+	}
+	client.tenantID = t.ID
+	client.crossTenant = false
+	slog.Info("tenant_scope applied", "client", client.id, "tenant", t.Slug, "tenant_id", t.ID)
 }
 
 func (r *MethodRouter) handleHealth(ctx context.Context, client *Client, req *protocol.RequestFrame) {

@@ -121,8 +121,13 @@ function UserMenu() {
     : currentTenant?.name || "";
 
   const handleSwitchTenant = (_tenantId: string, slug: string) => {
-    localStorage.setItem("goclaw:tenant_hint", slug);
-    // Reconnect will pick up the new tenant_hint
+    // Cross-tenant admin: narrow scope to specific tenant
+    // Non-cross-tenant: use tenant_hint for pairing
+    if (isCrossTenant) {
+      localStorage.setItem("goclaw:tenant_scope", slug);
+    } else {
+      localStorage.setItem("goclaw:tenant_hint", slug);
+    }
     window.location.reload();
   };
 
@@ -160,6 +165,22 @@ function UserMenu() {
               <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
                 {tt("currentTenant")}
               </div>
+              {/* "All Tenants" option for cross-tenant admins */}
+              {isCrossTenant && (
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("goclaw:tenant_scope");
+                    window.location.reload();
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span className="flex-1 truncate text-left font-medium">{tt("allTenants")}</span>
+                  {!currentTenantId && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  )}
+                </button>
+              )}
               {tenants.map((tenant) => (
                 <button
                   key={tenant.id}
