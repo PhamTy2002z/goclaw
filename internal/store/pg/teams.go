@@ -189,10 +189,10 @@ func (s *PGTeamStore) ListTeams(ctx context.Context) ([]store.TeamData, error) {
 
 func (s *PGTeamStore) AddMember(ctx context.Context, teamID, agentID uuid.UUID, role string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_team_members (team_id, agent_id, role, joined_at)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO agent_team_members (team_id, agent_id, role, joined_at, tenant_id)
+		 VALUES ($1, $2, $3, $4, $5)
 		 ON CONFLICT (team_id, agent_id) DO UPDATE SET role = EXCLUDED.role`,
-		teamID, agentID, role, time.Now(),
+		teamID, agentID, role, time.Now(), tenantIDForInsert(ctx),
 	)
 	return err
 }

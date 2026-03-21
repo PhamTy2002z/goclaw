@@ -21,11 +21,11 @@ func (s *PGTeamStore) AddTaskComment(ctx context.Context, comment *store.TeamTas
 	}
 	comment.CreatedAt = time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO team_task_comments (id, task_id, agent_id, user_id, content, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		`INSERT INTO team_task_comments (id, task_id, agent_id, user_id, content, created_at, tenant_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		comment.ID, comment.TaskID, comment.AgentID,
 		sql.NullString{String: comment.UserID, Valid: comment.UserID != ""},
-		comment.Content, comment.CreatedAt,
+		comment.Content, comment.CreatedAt, tenantIDForInsert(ctx),
 	)
 	if err != nil {
 		return err
@@ -116,9 +116,9 @@ func (s *PGTeamStore) RecordTaskEvent(ctx context.Context, event *store.TeamTask
 	}
 	event.CreatedAt = time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO team_task_events (id, task_id, event_type, actor_type, actor_id, data, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		event.ID, event.TaskID, event.EventType, event.ActorType, event.ActorID, event.Data, event.CreatedAt,
+		`INSERT INTO team_task_events (id, task_id, event_type, actor_type, actor_id, data, created_at, tenant_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		event.ID, event.TaskID, event.EventType, event.ActorType, event.ActorID, event.Data, event.CreatedAt, tenantIDForInsert(ctx),
 	)
 	return err
 }
@@ -190,13 +190,13 @@ func (s *PGTeamStore) AttachFileToTask(ctx context.Context, att *store.TeamTaskA
 		att.Metadata = json.RawMessage(`{}`)
 	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO team_task_attachments (id, task_id, team_id, chat_id, path, file_size, mime_type, created_by_agent_id, created_by_sender_id, metadata, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`INSERT INTO team_task_attachments (id, task_id, team_id, chat_id, path, file_size, mime_type, created_by_agent_id, created_by_sender_id, metadata, created_at, tenant_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		 ON CONFLICT (task_id, path) DO NOTHING`,
 		att.ID, att.TaskID, att.TeamID, att.ChatID, att.Path,
 		att.FileSize, att.MimeType, att.CreatedByAgentID,
 		sql.NullString{String: att.CreatedBySenderID, Valid: att.CreatedBySenderID != ""},
-		att.Metadata, att.CreatedAt,
+		att.Metadata, att.CreatedAt, tenantIDForInsert(ctx),
 	)
 	if err != nil {
 		return err

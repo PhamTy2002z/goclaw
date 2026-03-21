@@ -47,6 +47,10 @@ DROP TABLE IF EXISTS builtin_tool_tenant_configs;
 DROP TABLE IF EXISTS tenant_users;
 
 -- Drop tenant_id from all tables (reverse order)
+ALTER TABLE team_task_attachments DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE team_task_events DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE team_task_comments DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE agent_team_members DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE embedding_cache DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE spans DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE team_tasks DROP COLUMN IF EXISTS tenant_id;

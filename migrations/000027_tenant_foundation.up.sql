@@ -107,6 +107,12 @@ ALTER TABLE spans ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000
 -- Cache
 ALTER TABLE embedding_cache ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000-8000-000000000001' REFERENCES tenants(id);
 
+-- Team activity tables
+ALTER TABLE agent_team_members ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000-8000-000000000001' REFERENCES tenants(id);
+ALTER TABLE team_task_comments ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000-8000-000000000001' REFERENCES tenants(id);
+ALTER TABLE team_task_events ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000-8000-000000000001' REFERENCES tenants(id);
+ALTER TABLE team_task_attachments ADD COLUMN tenant_id UUID NOT NULL DEFAULT '0193a5b0-7000-7000-8000-000000000001' REFERENCES tenants(id);
+
 -- ============================================================
 -- Phase C: Drop defaults (force explicit tenant_id for new rows)
 -- ============================================================
@@ -149,6 +155,10 @@ ALTER TABLE mcp_agent_grants ALTER COLUMN tenant_id DROP DEFAULT;
 ALTER TABLE team_tasks ALTER COLUMN tenant_id DROP DEFAULT;
 ALTER TABLE spans ALTER COLUMN tenant_id DROP DEFAULT;
 ALTER TABLE embedding_cache ALTER COLUMN tenant_id DROP DEFAULT;
+ALTER TABLE agent_team_members ALTER COLUMN tenant_id DROP DEFAULT;
+ALTER TABLE team_task_comments ALTER COLUMN tenant_id DROP DEFAULT;
+ALTER TABLE team_task_events ALTER COLUMN tenant_id DROP DEFAULT;
+ALTER TABLE team_task_attachments ALTER COLUMN tenant_id DROP DEFAULT;
 
 -- ============================================================
 -- Phase D: Indexes
@@ -193,6 +203,10 @@ CREATE INDEX idx_mcp_agent_grants_tenant ON mcp_agent_grants(tenant_id);
 CREATE INDEX idx_team_tasks_tenant ON team_tasks(tenant_id);
 CREATE INDEX idx_spans_tenant ON spans(tenant_id);
 CREATE INDEX idx_embedding_cache_tenant ON embedding_cache(tenant_id);
+CREATE INDEX idx_agent_team_members_tenant ON agent_team_members(tenant_id);
+CREATE INDEX idx_team_task_comments_tenant ON team_task_comments(tenant_id);
+CREATE INDEX idx_team_task_events_tenant ON team_task_events(tenant_id);
+CREATE INDEX idx_team_task_attachments_tenant ON team_task_attachments(tenant_id);
 
 -- Composite indexes for Plan 3 query performance
 CREATE INDEX idx_agents_tenant_active ON agents(tenant_id) WHERE deleted_at IS NULL;
