@@ -51,7 +51,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         /* Normal message bubble — assistant uses full width, user capped at 85% */
         <div className={`rounded-lg px-4 py-2 ${
           isUser
-            ? "max-w-[85%] bg-primary text-primary-foreground"
+            ? "max-w-[85%] bg-[var(--chat-bubble-user)] text-white"
             : "flex-1 min-w-0 bg-card text-card-foreground border border-border shadow-sm"
         }`}>
           {hasThinking && (
@@ -73,7 +73,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             </div>
           )}
           {message.timestamp && (
-            <div className={`mt-1 text-[10px] ${isUser ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+            <div className={`mt-1 text-[10px] ${isUser ? "text-white/60" : "text-muted-foreground"}`}>
               {new Date(message.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             </div>
           )}

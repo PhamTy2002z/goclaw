@@ -194,7 +194,7 @@ func (s *PGContactStore) MergeContacts(ctx context.Context, contactIDs []uuid.UU
 		args...,
 	).Scan(&existingMergedID)
 
-	mergedID := uuid.New()
+	mergedID := uuid.Must(uuid.NewV7())
 	if err == nil && existingMergedID != nil {
 		mergedID = *existingMergedID
 	}

@@ -1,8 +1,9 @@
 import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
+import { ShieldAlert, LogOut } from "lucide-react";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { LoginLayout } from "./login-layout";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, LOCAL_STORAGE_KEYS } from "@/lib/constants";
 
 export function TenantSelectorPage() {
   const { t } = useTranslation("login");
@@ -16,9 +17,9 @@ export function TenantSelectorPage() {
 
   const handleSelect = (slug: string) => {
     if (slug === "__all__") {
-      localStorage.removeItem("goclaw:tenant_id");
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.TENANT_ID);
     } else {
-      localStorage.setItem("goclaw:tenant_id", slug);
+      localStorage.setItem(LOCAL_STORAGE_KEYS.TENANT_ID, slug);
     }
     useAuthStore.getState().setTenantSelected(true);
     // Reload to reconnect WS with the new tenant_scope
@@ -34,13 +35,20 @@ export function TenantSelectorPage() {
   if (!isCrossTenant && availableTenants.length === 0) {
     return (
       <LoginLayout subtitle={t("noAccess")}>
-        <div className="space-y-4 text-center">
-          <p className="text-sm text-muted-foreground">{t("noAccessDescription")}</p>
+        <div className="space-y-5 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/40">
+            <ShieldAlert className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">{t("noAccessDescription")}</p>
+            <p className="text-xs text-muted-foreground/70">{t("noAccessHint")}</p>
+          </div>
           <button
             onClick={handleLogout}
-            className="w-full rounded-md border border-input bg-background px-4 py-2 text-base md:text-sm font-medium hover:bg-muted transition-colors"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2.5 text-base md:text-sm font-medium hover:bg-muted transition-colors"
           >
-            {t("token.connect", { defaultValue: "Sign out" })}
+            <LogOut className="h-4 w-4" />
+            {t("logout")}
           </button>
         </div>
       </LoginLayout>

@@ -343,3 +343,14 @@ CREATE UNIQUE INDEX idx_usage_snapshots_unique ON usage_snapshots (
 UPDATE sessions
 SET messages = regexp_replace(messages::text, '\?token=[a-f0-9]+', '', 'g')::jsonb
 WHERE messages::text LIKE '%?token=%';
+
+-- ============================================================
+-- Phase K: Migrate remaining UUID v4 defaults to v7
+-- ============================================================
+
+ALTER TABLE kg_entities          ALTER COLUMN id SET DEFAULT uuid_generate_v7();
+ALTER TABLE kg_relations         ALTER COLUMN id SET DEFAULT uuid_generate_v7();
+ALTER TABLE channel_contacts     ALTER COLUMN id SET DEFAULT uuid_generate_v7();
+ALTER TABLE team_user_grants     ALTER COLUMN id SET DEFAULT uuid_generate_v7();
+ALTER TABLE tenant_users         ALTER COLUMN id SET DEFAULT uuid_generate_v7();
+ALTER TABLE mcp_user_credentials ALTER COLUMN id SET DEFAULT uuid_generate_v7();
