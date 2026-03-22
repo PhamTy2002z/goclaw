@@ -140,9 +140,10 @@ func (t *TaskTicker) recoverAll(forceRecover bool) {
 // ============================================================
 
 type taskScope struct {
-	TeamID  uuid.UUID
-	Channel string // from task's origin channel
-	ChatID  string
+	TeamID   uuid.UUID
+	TenantID uuid.UUID
+	Channel  string // from task's origin channel
+	ChatID   string
 }
 
 // notifyLeaders sends a batched system message per (teamID, channel, chatID) scope to the leader.
@@ -154,7 +155,7 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 	// Group by (team_id, channel, chat_id) → one message per scope.
 	byScope := map[taskScope][]store.RecoveredTaskInfo{}
 	for _, task := range tasks {
-		key := taskScope{TeamID: task.TeamID, Channel: task.Channel, ChatID: task.ChatID}
+		key := taskScope{TeamID: task.TeamID, TenantID: task.TenantID, Channel: task.Channel, ChatID: task.ChatID}
 		byScope[key] = append(byScope[key], task)
 	}
 
@@ -205,6 +206,7 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 			ChatID:   chatID,
 			AgentID:  lead.AgentKey,
 			UserID:   team.CreatedBy,
+			TenantID: scope.TenantID,
 			Content:  content,
 		}) {
 			slog.Warn("task_ticker: inbound buffer full, notification dropped",
@@ -225,15 +227,12 @@ func (t *TaskTicker) broadcastStaleEvents(ctx context.Context, tasks []store.Rec
 			continue
 		}
 		seen[task.TeamID] = true
-		t.msgBus.Broadcast(bus.Event{
-			Name: protocol.EventTeamTaskStale,
-			Payload: protocol.TeamTaskEventPayload{
-				TeamID:    task.TeamID.String(),
-				Status:    store.TeamTaskStatusStale,
-				Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05Z"),
-				ActorType: "system",
-				ActorID:   "task_ticker",
-			},
+		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, task.TenantID, protocol.TeamTaskEventPayload{
+			TeamID:    task.TeamID.String(),
+			Status:    store.TeamTaskStatusStale,
+			Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+			ActorType: "system",
+			ActorID:   "task_ticker",
 		})
 	}
 }

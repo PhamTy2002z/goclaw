@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -25,13 +26,17 @@ func (m *TeamsMethods) RegisterWorkspace(router *gateway.MethodRouter) {
 }
 
 // teamWorkspaceDir returns the base directory for a team's workspace files.
-// Pattern: {dataDir}/teams/{teamID}/
-// If chatID is provided, scopes to {dataDir}/teams/{teamID}/{chatID}/
-func teamWorkspaceDir(dataDir string, teamID uuid.UUID, chatID string) string {
+// Scoped to tenant via config.TenantTeamDir: {dataDir}/tenants/{slug}/teams/{teamID}/
+// Master tenant: {dataDir}/teams/{teamID}/ (backward compat).
+// If chatID is provided, further scopes to .../{chatID}/
+func teamWorkspaceDir(ctx context.Context, dataDir string, teamID uuid.UUID, chatID string) string {
+	tid := store.TenantIDFromContext(ctx)
+	slug := store.TenantSlugFromContext(ctx)
+	base := config.TenantTeamDir(dataDir, tid, slug, teamID)
 	if chatID != "" {
-		return filepath.Join(dataDir, "teams", teamID.String(), chatID)
+		return filepath.Join(base, chatID)
 	}
-	return filepath.Join(dataDir, "teams", teamID.String())
+	return base
 }
 
 // workspaceFileEntry is the response shape for workspace file listing.
@@ -76,7 +81,7 @@ func (m *TeamsMethods) handleWorkspaceList(ctx context.Context, client *gateway.
 		shared = tools.IsSharedWorkspace(team.Settings)
 	}
 
-	baseDir := teamWorkspaceDir(m.dataDir, teamID, "")
+	baseDir := teamWorkspaceDir(ctx, m.dataDir, teamID, "")
 	var files []workspaceFileEntry
 
 	if shared || params.ChatID != "" {
@@ -84,7 +89,7 @@ func (m *TeamsMethods) handleWorkspaceList(ctx context.Context, client *gateway.
 		scopeDir := baseDir
 		scopeChatID := ""
 		if !shared && params.ChatID != "" {
-			scopeDir = teamWorkspaceDir(m.dataDir, teamID, params.ChatID)
+			scopeDir = teamWorkspaceDir(ctx, m.dataDir, teamID, params.ChatID)
 			scopeChatID = params.ChatID
 		}
 		files = walkDir(scopeDir, "", scopeChatID)
@@ -207,7 +212,7 @@ func (m *TeamsMethods) handleWorkspaceRead(ctx context.Context, client *gateway.
 		return
 	}
 
-	scopeDir := teamWorkspaceDir(m.dataDir, teamID, chatID)
+	scopeDir := teamWorkspaceDir(ctx, m.dataDir, teamID, chatID)
 	diskPath := filepath.Clean(filepath.Join(scopeDir, params.FileName))
 	// Ensure resolved path stays within the workspace scope directory.
 	if !strings.HasPrefix(diskPath, filepath.Clean(scopeDir)+string(os.PathSeparator)) && diskPath != filepath.Clean(scopeDir) {
@@ -283,7 +288,7 @@ func (m *TeamsMethods) handleWorkspaceDelete(ctx context.Context, client *gatewa
 		return
 	}
 
-	scopeDir := teamWorkspaceDir(m.dataDir, teamID, chatID)
+	scopeDir := teamWorkspaceDir(ctx, m.dataDir, teamID, chatID)
 	diskPath := filepath.Clean(filepath.Join(scopeDir, params.FileName))
 	// Ensure resolved path stays within the workspace scope directory.
 	if !strings.HasPrefix(diskPath, filepath.Clean(scopeDir)+string(os.PathSeparator)) && diskPath != filepath.Clean(scopeDir) {

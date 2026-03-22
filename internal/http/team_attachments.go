@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -74,11 +75,11 @@ func (h *TeamAttachmentsHandler) handleDownload(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Resolve absolute disk path: {dataDir}/teams/{teamID}/{chatID}/{path}
-	absPath := filepath.Join(h.dataDir, "teams", att.TeamID.String(), att.ChatID, att.Path)
-
-	// Security: path traversal check — resolved path must stay within team workspace.
-	teamBase := filepath.Join(h.dataDir, "teams", att.TeamID.String())
+	// Resolve absolute disk path scoped to tenant: {dataDir}/tenants/{slug}/teams/{teamID}/{chatID}/{path}
+	tid := store.TenantIDFromContext(r.Context())
+	slug := store.TenantSlugFromContext(r.Context())
+	teamBase := config.TenantTeamDir(h.dataDir, tid, slug, att.TeamID)
+	absPath := filepath.Join(teamBase, att.ChatID, att.Path)
 	cleanPath := filepath.Clean(absPath)
 	if !strings.HasPrefix(cleanPath, teamBase+string(filepath.Separator)) && cleanPath != teamBase {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid attachment path"})

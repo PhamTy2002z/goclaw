@@ -128,7 +128,7 @@ func (w *WorkspaceInterceptor) AfterWrite(ctx context.Context, path string, acti
 	}
 
 	// Broadcast workspace file change event for real-time UI updates.
-	w.teamMgr.broadcastTeamEvent(protocol.EventWorkspaceFileChanged, map[string]string{
+	w.teamMgr.broadcastTeamEvent(ctx, protocol.EventWorkspaceFileChanged, map[string]string{
 		"team_id":   teamIDStr,
 		"channel":   "",
 		"chat_id":   chatID,

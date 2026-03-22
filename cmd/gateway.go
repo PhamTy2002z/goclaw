@@ -175,6 +175,7 @@ func runGateway() {
 					ChatID:   meta.OriginChatID,
 					Content:  content,
 					UserID:   meta.OriginUserID,
+					TenantID: meta.OriginTenantID,
 					Metadata: batchMeta,
 					Media:    batchMedia,
 				})
@@ -310,7 +311,7 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if providersH != nil {
 		providersH.SetAPIBaseFallback(cfg.Providers.APIBaseForType)
 	}
@@ -406,7 +407,7 @@ func runGateway() {
 
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
-	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token, workspace))
+	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token, workspace, dataDir))
 
 	// Storage file management — browse/delete files under the resolved workspace directory.
 	// Uses GOCLAW_WORKSPACE (or default ~/.goclaw/workspace) so it works correctly
@@ -514,7 +515,8 @@ func runGateway() {
 		})
 		go func() {
 			for payload := range auditCh {
-				if err := pgStores.Activity.Log(context.Background(), &store.ActivityLog{
+				auditCtx := store.WithTenantID(context.Background(), payload.TenantID)
+				if err := pgStores.Activity.Log(auditCtx, &store.ActivityLog{
 					ActorType:  payload.ActorType,
 					ActorID:    payload.ActorID,
 					Action:     payload.Action,
@@ -892,6 +894,7 @@ func runGateway() {
 		})
 		server.Router().SetPermissionCache(permCache)
 		httpapi.InitTenantStore(pgStores.Tenants, msgBus)
+		httpapi.InitOwnerIDs(cfg.Gateway.OwnerIDs)
 	}
 
 	// Reload quota config on config changes via pub/sub.

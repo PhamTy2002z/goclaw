@@ -13,15 +13,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // StorageHandler provides HTTP endpoints for browsing and managing
 // files inside the ~/.goclaw/ data directory.
 // Skills directories are browsable (read-only) but deletion is blocked.
 type StorageHandler struct {
-	baseDir string // resolved absolute path to ~/.goclaw/
+	baseDir string // global data dir (resolved absolute path to ~/.goclaw/)
 	token   string
 
 	// sizeCache caches the total storage size for 60 minutes.
@@ -48,6 +50,14 @@ func (h *StorageHandler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *StorageHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return requireAuth(h.token, "", next)
+}
+
+// tenantBaseDir resolves the data directory scoped to the requesting tenant.
+// Master tenant returns the global baseDir (backward compat).
+func (h *StorageHandler) tenantBaseDir(r *http.Request) string {
+	tid := store.TenantIDFromContext(r.Context())
+	slug := store.TenantSlugFromContext(r.Context())
+	return config.TenantDataDir(h.baseDir, tid, slug)
 }
 
 // protectedDirs are top-level directories where deletion is blocked
@@ -91,11 +101,12 @@ func (h *StorageHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rootDir := h.baseDir
+	base := h.tenantBaseDir(r)
+	rootDir := base
 	if subPath != "" {
-		rootDir = filepath.Join(h.baseDir, filepath.Clean(subPath))
-		if !strings.HasPrefix(rootDir, h.baseDir) {
-			slog.Warn("security.storage_escape", "resolved", rootDir, "root", h.baseDir)
+		rootDir = filepath.Join(base, filepath.Clean(subPath))
+		if !strings.HasPrefix(rootDir, base) {
+			slog.Warn("security.storage_escape", "resolved", rootDir, "root", base)
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidPath)})
 			return
 		}
@@ -119,7 +130,7 @@ func (h *StorageHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		if path == rootDir {
 			return nil
 		}
-		rel, _ := filepath.Rel(h.baseDir, path)
+		rel, _ := filepath.Rel(base, path)
 
 		// Skip symlinks
 		if d.Type()&os.ModeSymlink != 0 {
@@ -183,7 +194,7 @@ func (h *StorageHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"files":   entries,
-		"baseDir": h.baseDir,
+		"baseDir": base,
 	})
 }
 
@@ -221,7 +232,8 @@ func (h *StorageHandler) handleSize(w http.ResponseWriter, r *http.Request) {
 	var fileCount int
 	lastFlush := time.Now()
 
-	filepath.WalkDir(h.baseDir, func(path string, d os.DirEntry, err error) error {
+	sizeBase := h.tenantBaseDir(r)
+	filepath.WalkDir(sizeBase, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -232,7 +244,7 @@ func (h *StorageHandler) handleSize(w http.ResponseWriter, r *http.Request) {
 		if d.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
-		rel, _ := filepath.Rel(h.baseDir, path)
+		rel, _ := filepath.Rel(sizeBase, path)
 		if skills.IsSystemArtifact(rel) {
 			return nil
 		}
@@ -279,9 +291,10 @@ func (h *StorageHandler) handleRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	absPath := filepath.Join(h.baseDir, filepath.Clean(relPath))
-	if !strings.HasPrefix(absPath, h.baseDir+string(filepath.Separator)) {
-		slog.Warn("security.storage_escape", "resolved", absPath, "root", h.baseDir)
+	readBase := h.tenantBaseDir(r)
+	absPath := filepath.Join(readBase, filepath.Clean(relPath))
+	if !strings.HasPrefix(absPath, readBase+string(filepath.Separator)) {
+		slog.Warn("security.storage_escape", "resolved", absPath, "root", readBase)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidPath)})
 		return
 	}
@@ -346,9 +359,10 @@ func (h *StorageHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	absPath := filepath.Join(h.baseDir, filepath.Clean(relPath))
-	if !strings.HasPrefix(absPath, h.baseDir+string(filepath.Separator)) {
-		slog.Warn("security.storage_escape", "resolved", absPath, "root", h.baseDir)
+	delBase := h.tenantBaseDir(r)
+	absPath := filepath.Join(delBase, filepath.Clean(relPath))
+	if !strings.HasPrefix(absPath, delBase+string(filepath.Separator)) {
+		slog.Warn("security.storage_escape", "resolved", absPath, "root", delBase)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidPath)})
 		return
 	}

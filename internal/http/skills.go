@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
@@ -24,15 +25,24 @@ const maxSkillUploadSize = 20 << 20 // 20 MB
 // SkillsHandler handles skill management HTTP endpoints.
 type SkillsHandler struct {
 	skills     *pg.PGSkillStore
-	baseDir    string // filesystem base for skill content (skills-store/)
+	baseDir    string // filesystem base for skill content (skills-store/) — master tenant
+	dataDir    string // parent data dir for tenant-scoped skill paths
 	bundledDir string // original bundled skills dir (fallback for broken managed copies)
 	token      string
 	msgBus     *bus.MessageBus
 }
 
 // NewSkillsHandler creates a handler for skill management endpoints.
-func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, bundledDir, token string, msgBus *bus.MessageBus) *SkillsHandler {
-	return &SkillsHandler{skills: skills, baseDir: baseDir, bundledDir: bundledDir, token: token, msgBus: msgBus}
+func NewSkillsHandler(skills *pg.PGSkillStore, baseDir, dataDir, bundledDir, token string, msgBus *bus.MessageBus) *SkillsHandler {
+	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, token: token, msgBus: msgBus}
+}
+
+// tenantSkillsDir returns the skills-store directory scoped to the requesting tenant.
+// Master tenant returns h.baseDir unchanged (backward compat).
+func (h *SkillsHandler) tenantSkillsDir(r *http.Request) string {
+	tid := store.TenantIDFromContext(r.Context())
+	slug := store.TenantSlugFromContext(r.Context())
+	return config.TenantSkillsStoreDir(h.dataDir, tid, slug)
 }
 
 // emitCacheInvalidate broadcasts a cache invalidation event if msgBus is set.
@@ -100,14 +110,14 @@ func (h *SkillsHandler) requireMasterTenant(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *SkillsHandler) handleList(w http.ResponseWriter, r *http.Request) {
-	skills := h.skills.ListSkills()
+	skills := h.skills.ListSkills(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{"skills": skills})
 }
 
 func (h *SkillsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	locale := store.LocaleFromContext(r.Context())
 	id := r.PathValue("id")
-	skill, ok := h.skills.GetSkill(id)
+	skill, ok := h.skills.GetSkill(r.Context(), id)
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "skill", id)})
 		return
@@ -128,7 +138,7 @@ func (h *SkillsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	auth := resolveAuth(r, h.token)
 	if !permissions.HasMinRole(auth.Role, permissions.RoleAdmin) {
 		userID := store.UserIDFromContext(r.Context())
-		if ownerID, found := h.skills.GetSkillOwnerID(id); found && ownerID != userID {
+		if ownerID, found := h.skills.GetSkillOwnerID(r.Context(), id); found && ownerID != userID {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "only the skill owner can perform this action"})
 			return
 		}
@@ -169,7 +179,7 @@ func (h *SkillsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	auth := resolveAuth(r, h.token)
 	if !permissions.HasMinRole(auth.Role, permissions.RoleAdmin) {
 		userID := store.UserIDFromContext(r.Context())
-		if ownerID, found := h.skills.GetSkillOwnerID(id); found && ownerID != userID {
+		if ownerID, found := h.skills.GetSkillOwnerID(r.Context(), id); found && ownerID != userID {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "only the skill owner can perform this action"})
 			return
 		}
@@ -220,7 +230,7 @@ func (h *SkillsHandler) handleInstallDeps(w http.ResponseWriter, r *http.Request
 	}
 
 	// Re-check all system skills and update status after install
-	allSkills := h.skills.ListAllSkills()
+	allSkills := h.skills.ListAllSkills(r.Context())
 	for _, sk := range allSkills {
 		if !sk.IsSystem {
 			continue
@@ -318,7 +328,7 @@ type depResult struct {
 
 // rescanAndUpdate re-checks all skills and updates their status + missing deps in DB.
 func (h *SkillsHandler) rescanAndUpdate() (updated int, results []depResult) {
-	allSkills := h.skills.ListAllSkills()
+	allSkills := h.skills.ListAllSkills(store.WithCrossTenant(context.Background()))
 
 	for _, sk := range allSkills {
 		manifest := h.scanWithFallback(sk)
@@ -455,7 +465,7 @@ func (h *SkillsHandler) handleToggle(w http.ResponseWriter, r *http.Request) {
 	newStatus := ""
 	if body.Enabled {
 		// Re-check deps for this skill so its status reflects reality after being re-enabled.
-		sk, ok := h.skills.GetSkillByID(id)
+		sk, ok := h.skills.GetSkillByID(r.Context(), id)
 		if ok {
 			manifest := h.scanWithFallback(sk)
 			if manifest != nil && !manifest.IsEmpty() {

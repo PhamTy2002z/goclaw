@@ -29,7 +29,17 @@ func (h *MediaServeHandler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *MediaServeHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Accept token via Bearer header or ?token= query param (for <img src>).
+		// Priority 1: short-lived signed file token (?ft=) — no gateway token exposure.
+		if ft := r.URL.Query().Get("ft"); ft != "" {
+			mediaID := r.PathValue("id")
+			if VerifyFileToken(ft, "/v1/media/"+mediaID, h.token) {
+				next(w, r)
+				return
+			}
+			http.Error(w, "invalid or expired file token", http.StatusUnauthorized)
+			return
+		}
+		// Priority 2: Bearer header. Priority 3: ?token= (legacy).
 		provided := extractBearerToken(r)
 		if provided == "" {
 			provided = r.URL.Query().Get("token")

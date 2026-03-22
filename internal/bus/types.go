@@ -128,6 +128,7 @@ type AuditEventPayload struct {
 	EntityID   string          `json:"entity_id"`
 	IPAddress  string          `json:"ip_address,omitempty"`
 	Details    json.RawMessage `json:"details,omitempty"`
+	TenantID   uuid.UUID       `json:"tenant_id,omitempty"` // for async subscriber tenant scoping
 }
 
 // CacheInvalidatePayload signals cache layers to evict stale entries.

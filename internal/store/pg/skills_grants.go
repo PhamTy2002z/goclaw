@@ -19,10 +19,10 @@ func (s *PGSkillStore) GrantToAgent(ctx context.Context, skillID, agentID uuid.U
 		return err
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO skill_agent_grants (id, skill_id, agent_id, pinned_version, granted_by, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO skill_agent_grants (id, skill_id, agent_id, pinned_version, granted_by, created_at, tenant_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 ON CONFLICT (skill_id, agent_id) DO UPDATE SET pinned_version = EXCLUDED.pinned_version`,
-		store.GenNewID(), skillID, agentID, version, grantedBy, time.Now(),
+		store.GenNewID(), skillID, agentID, version, grantedBy, time.Now(), tenantIDForInsert(ctx),
 	)
 	if err != nil {
 		return err

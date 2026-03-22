@@ -231,7 +231,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	}
 
 	agentKey := t.manager.agentKeyFromID(ctx, agentID)
-	t.manager.broadcastTeamEvent(protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
+	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
 		TeamID:    team.ID.String(),
 		TaskID:    task.ID.String(),
 		Subject:   subject,
@@ -253,7 +253,7 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 			if err := t.manager.teamStore.AssignTask(ctx, task.ID, assigneeID, team.ID); err != nil {
 				slog.Warn("executeCreate: fallback assign failed", "task_id", task.ID, "error", err)
 			} else {
-				t.manager.broadcastTeamEvent(protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
+				t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
 					TeamID:        team.ID.String(),
 					TaskID:        task.ID.String(),
 					TaskNumber:    task.TaskNumber,
@@ -314,7 +314,7 @@ func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any)
 		return ErrorResult("failed to add comment: " + err.Error())
 	}
 
-	t.manager.broadcastTeamEvent(protocol.EventTeamTaskCommented, protocol.TeamTaskEventPayload{
+	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskCommented, protocol.TeamTaskEventPayload{
 		TeamID:      team.ID.String(),
 		TaskID:      taskID.String(),
 		TaskNumber:  task.TaskNumber,
@@ -376,7 +376,7 @@ func (t *TeamTasksTool) executeProgress(ctx context.Context, args map[string]any
 	if task.OwnerAgentID != nil {
 		ownerKey = t.manager.agentKeyFromID(ctx, *task.OwnerAgentID)
 	}
-	t.manager.broadcastTeamEvent(protocol.EventTeamTaskProgress, protocol.TeamTaskEventPayload{
+	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskProgress, protocol.TeamTaskEventPayload{
 		TeamID:          team.ID.String(),
 		TaskID:          taskID.String(),
 		TaskNumber:      task.TaskNumber,
@@ -511,7 +511,7 @@ func (t *TeamTasksTool) executeUpdate(ctx context.Context, args map[string]any) 
 		return ErrorResult("failed to update task: " + err.Error())
 	}
 
-	t.manager.broadcastTeamEvent(protocol.EventTeamTaskUpdated, protocol.TeamTaskEventPayload{
+	t.manager.broadcastTeamEvent(ctx, protocol.EventTeamTaskUpdated, protocol.TeamTaskEventPayload{
 		TeamID:    team.ID.String(),
 		TaskID:    taskID.String(),
 		Subject:   task.Subject,

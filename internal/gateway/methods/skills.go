@@ -33,8 +33,8 @@ func (m *SkillsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodSkillsUpdate, m.handleUpdate)
 }
 
-func (m *SkillsMethods) handleList(_ context.Context, client *gateway.Client, req *protocol.RequestFrame) {
-	allSkills := m.store.ListSkills()
+func (m *SkillsMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	allSkills := m.store.ListSkills(ctx)
 
 	result := make([]map[string]any, 0, len(allSkills))
 	for _, s := range allSkills {
@@ -86,13 +86,13 @@ func (m *SkillsMethods) handleGet(ctx context.Context, client *gateway.Client, r
 		return
 	}
 
-	info, ok := m.store.GetSkill(params.Name)
+	info, ok := m.store.GetSkill(ctx, params.Name)
 	if !ok {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
 		return
 	}
 
-	content, _ := m.store.LoadSkill(params.Name)
+	content, _ := m.store.LoadSkill(ctx, params.Name)
 
 	resp := map[string]any{
 		"name":        info.Name,
@@ -153,7 +153,7 @@ func (m *SkillsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 	} else {
 		// Look up by name — use GetSkill which returns path info, but we need DB ID
 		// For PGSkillStore, the name is the slug
-		info, exists := m.store.GetSkill(params.Name)
+		info, exists := m.store.GetSkill(ctx, params.Name)
 		if !exists {
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "skill", params.Name)))
 			return

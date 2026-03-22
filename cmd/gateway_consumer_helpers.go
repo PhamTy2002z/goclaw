@@ -10,6 +10,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 )
 
@@ -116,11 +117,6 @@ func mediaToMarkdown(media []agent.MediaResult, cfg *config.Config) string {
 		return ""
 	}
 
-	tokenQuery := ""
-	if cfg.Gateway.Token != "" {
-		tokenQuery = "?token=" + cfg.Gateway.Token
-	}
-
 	var parts []string
 	for _, mr := range media {
 		cleanPath := filepath.Clean(mr.Path)
@@ -129,7 +125,9 @@ func mediaToMarkdown(media []agent.MediaResult, cfg *config.Config) string {
 		if urlPath == "" {
 			continue
 		}
-		fileURL := "/v1/files/" + urlPath + tokenQuery
+		// Use short-lived signed file token instead of exposing the gateway token in URLs.
+		ft := httpapi.SignFileToken("/"+urlPath, cfg.Gateway.Token, httpapi.FileTokenTTL)
+		fileURL := "/v1/files/" + urlPath + "?ft=" + ft
 		if strings.HasPrefix(mr.ContentType, "image/") {
 			parts = append(parts, fmt.Sprintf("![image](%s)", fileURL))
 		} else {

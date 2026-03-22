@@ -13,6 +13,7 @@ import (
 type RecoveredTaskInfo struct {
 	ID         uuid.UUID
 	TeamID     uuid.UUID
+	TenantID   uuid.UUID
 	TaskNumber int
 	Subject    string
 	Channel    string // task's origin channel for notification routing

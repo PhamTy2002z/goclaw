@@ -145,9 +145,10 @@ func (s *PGPendingMessageStore) Compact(ctx context.Context, deleteIDs []uuid.UU
 
 func (s *PGPendingMessageStore) DeleteStale(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := time.Now().Add(-olderThan)
+	tid := tenantIDForInsert(ctx)
 	result, err := s.db.ExecContext(ctx,
-		`DELETE FROM channel_pending_messages WHERE updated_at < $1`,
-		cutoff,
+		`DELETE FROM channel_pending_messages WHERE updated_at < $1 AND tenant_id = $2`,
+		cutoff, tid,
 	)
 	if err != nil {
 		return 0, err

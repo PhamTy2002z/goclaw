@@ -166,6 +166,7 @@ func (m *TeamToolManager) dispatchTaskToAgent(ctx context.Context, task *store.T
 		ChatID:   teamID.String(),
 		Content:  content,
 		UserID:   originUserID,
+		TenantID: store.TenantIDFromContext(ctx),
 		AgentID:  ag.AgentKey,
 		Metadata: meta,
 	}) {
@@ -304,7 +305,7 @@ func (m *TeamToolManager) DispatchUnblockedTasks(ctx context.Context, teamID uui
 			continue
 		}
 		dispatched[ownerID] = true
-		m.broadcastTeamEvent(protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
+		m.broadcastTeamEvent(ctx, protocol.EventTeamTaskDispatched, protocol.TeamTaskEventPayload{
 			TeamID:        teamID.String(),
 			TaskID:        task.ID.String(),
 			TaskNumber:    task.TaskNumber,

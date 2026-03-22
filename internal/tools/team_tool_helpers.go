@@ -13,14 +13,12 @@ import (
 )
 
 // broadcastTeamEvent sends a real-time event via the message bus for team activity visibility.
-func (m *TeamToolManager) broadcastTeamEvent(name string, payload any) {
+// Includes tenant_id from context for proper WS event filtering.
+func (m *TeamToolManager) broadcastTeamEvent(ctx context.Context, name string, payload any) {
 	if m.msgBus == nil {
 		return
 	}
-	m.msgBus.Broadcast(bus.Event{
-		Name:    name,
-		Payload: payload,
-	})
+	bus.BroadcastForTenant(m.msgBus, name, store.TenantIDFromContext(ctx), payload)
 }
 
 // resolveTeamRole returns the calling agent's role in the team.
@@ -194,7 +192,7 @@ func (m *TeamToolManager) createEscalationTask(ctx context.Context, team *store.
 		return ErrorResult("failed to create escalation task: " + err.Error())
 	}
 
-	m.broadcastTeamEvent(protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
+	m.broadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
 		TeamID:    team.ID.String(),
 		TaskID:    task.ID.String(),
 		Subject:   subject,

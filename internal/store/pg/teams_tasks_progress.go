@@ -86,7 +86,7 @@ func (s *PGTeamStore) RecoverAllStaleTasks(ctx context.Context) ([]store.Recover
 		   AND COALESCE((tm.settings->>'version')::int, 0) >= 2
 		   AND t.status = $3
 		   AND t.lock_expires_at IS NOT NULL AND t.lock_expires_at < $2
-		 RETURNING t.id, t.team_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
+		 RETURNING t.id, t.team_id, t.tenant_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
 		store.TeamTaskStatusPending, now, store.TeamTaskStatusInProgress,
 	)
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *PGTeamStore) ForceRecoverAllTasks(ctx context.Context) ([]store.Recover
 		 WHERE t.team_id = tm.id AND tm.status = 'active'
 		   AND COALESCE((tm.settings->>'version')::int, 0) >= 2
 		   AND t.status = $3
-		 RETURNING t.id, t.team_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
+		 RETURNING t.id, t.team_id, t.tenant_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
 		store.TeamTaskStatusPending, now, store.TeamTaskStatusInProgress,
 	)
 	if err != nil {
@@ -152,7 +152,7 @@ func (s *PGTeamStore) MarkAllStaleTasks(ctx context.Context, olderThan time.Time
 		 WHERE t.team_id = tm.id AND tm.status = 'active'
 		   AND COALESCE((tm.settings->>'version')::int, 0) >= 2
 		   AND t.status = $3 AND t.updated_at < $4
-		 RETURNING t.id, t.team_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
+		 RETURNING t.id, t.team_id, t.tenant_id, t.task_number, t.subject, COALESCE(t.channel, ''), COALESCE(t.chat_id, '')`,
 		store.TeamTaskStatusStale, now, store.TeamTaskStatusPending, olderThan,
 	)
 	if err != nil {
@@ -170,7 +170,7 @@ func scanRecoveredTaskInfoRows(rows interface {
 	var out []store.RecoveredTaskInfo
 	for rows.Next() {
 		var info store.RecoveredTaskInfo
-		if err := rows.Scan(&info.ID, &info.TeamID, &info.TaskNumber, &info.Subject, &info.Channel, &info.ChatID); err != nil {
+		if err := rows.Scan(&info.ID, &info.TeamID, &info.TenantID, &info.TaskNumber, &info.Subject, &info.Channel, &info.ChatID); err != nil {
 			return nil, err
 		}
 		out = append(out, info)

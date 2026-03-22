@@ -179,7 +179,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		OwnerIDs:               l.ownerIDs,
 		Mode:                   mode,
 		ToolNames:              toolNames,
-		SkillsSummary:          l.resolveSkillsSummary(skillFilter),
+		SkillsSummary:          l.resolveSkillsSummary(ctx, skillFilter),
 		HasMemory:              l.hasMemory,
 		HasSpawn:               l.tools != nil && hasSpawn,
 		HasTeam:                hasTeamTools,
@@ -305,7 +305,7 @@ const (
 // Returns (summary XML, useInline) — useInline=true means skills are inlined and
 // the system prompt should use TS-style "scan <available_skills>" instructions
 // instead of "use skill_search".
-func (l *Loop) resolveSkillsSummary(skillFilter []string) string {
+func (l *Loop) resolveSkillsSummary(ctx context.Context, skillFilter []string) string {
 	if l.skillsLoader == nil {
 		return ""
 	}
@@ -316,7 +316,7 @@ func (l *Loop) resolveSkillsSummary(skillFilter []string) string {
 		allowList = skillFilter
 	}
 
-	filtered := l.skillsLoader.FilterSkills(allowList)
+	filtered := l.skillsLoader.FilterSkills(ctx, allowList)
 	if len(filtered) == 0 {
 		return ""
 	}
@@ -330,7 +330,7 @@ func (l *Loop) resolveSkillsSummary(skillFilter []string) string {
 
 	if len(filtered) <= skillInlineMaxCount && estimatedTokens <= skillInlineMaxTokens {
 		// Inline mode: build full XML summary
-		return l.skillsLoader.BuildSummary(allowList)
+		return l.skillsLoader.BuildSummary(ctx, allowList)
 	}
 
 	// Search mode: no XML in prompt, agent uses skill_search tool
