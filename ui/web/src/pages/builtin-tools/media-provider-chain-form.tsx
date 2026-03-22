@@ -90,21 +90,25 @@ function parseInitialEntries(
   }
 
   // Legacy format: { provider, model }
+  // Only show if the provider exists in the current tenant's provider list.
   if (settings.provider || settings.model) {
     const providerName = String(settings.provider ?? "");
     const providerData = providers.find((p) => p.name === providerName);
-    return [
-      {
-        id: uniqueId(),
-        provider_id: providerData?.id ?? "",
-        provider: providerName,
-        model: String(settings.model ?? ""),
-        enabled: true,
-        timeout: 120,
-        max_retries: 2,
-        params: {},
-      },
-    ];
+    if (providerData) {
+      return [
+        {
+          id: uniqueId(),
+          provider_id: providerData.id,
+          provider: providerName,
+          model: String(settings.model ?? ""),
+          enabled: true,
+          timeout: 120,
+          max_retries: 2,
+          params: {},
+        },
+      ];
+    }
+    // Provider not available in this tenant — show empty chain
   }
 
   return [];

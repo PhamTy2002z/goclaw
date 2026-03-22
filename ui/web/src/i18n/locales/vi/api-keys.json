@@ -29,8 +29,11 @@
       "operator.read": "Chỉ đọc",
       "operator.write": "Đọc + ghi",
       "operator.approvals": "Quản lý phê duyệt",
-      "operator.pairing": "Quản lý ghép nối"
+      "operator.pairing": "Quản lý ghép nối",
+      "operator.provision": "Cấp phát tenant mới"
     },
+    "tenant": "Tenant",
+    "tenantSystem": "Hệ thống (tất cả tenant)",
     "expiry": "Hạn sử dụng",
     "expiryOptions": {
       "never": "Không giới hạn",
@@ -38,6 +41,7 @@
       "30d": "30 ngày",
       "90d": "90 ngày"
     },
+    "cancel": "Hủy",
     "create": "Tạo",
     "creating": "Đang tạo..."
   },
@@ -59,5 +63,7 @@
     "failedCreate": "Không thể tạo API key",
     "failedRevoke": "Không thể thu hồi API key"
   },
-  "never": "Không giới hạn"
+  "never": "Không giới hạn",
+  "tenantBadgeSystem": "Hệ thống",
+  "tenantBadgeUnknown": "Không xác định"
 }

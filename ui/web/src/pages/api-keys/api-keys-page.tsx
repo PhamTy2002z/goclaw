@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, RefreshCw, Key, Ban, Copy, Check } from "lucide-react";
+import { Plus, RefreshCw, Key, Ban, Copy, Check, Shield, Building2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SearchInput } from "@/components/shared/search-input";
@@ -22,14 +23,15 @@ import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
 import { useApiKeys } from "./hooks/use-api-keys";
 import { ApiKeyCreateDialog } from "./api-key-create-dialog";
+import { useTenants } from "@/hooks/use-tenants";
+import { formatRelativeTime } from "@/lib/format";
 import type { ApiKeyData } from "@/types/api-key";
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+function fullDateTime(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
 
@@ -39,10 +41,87 @@ function keyStatus(key: ApiKeyData, t: (k: string) => string): { label: string; 
   return { label: t("status.active"), variant: "default" };
 }
 
+function ApiKeyCard({
+  apiKey,
+  isCrossTenant,
+  tenants,
+  t,
+  onRevoke,
+}: {
+  apiKey: ApiKeyData;
+  isCrossTenant: boolean;
+  tenants: { id: string; name: string }[];
+  t: (k: string, opts?: Record<string, string>) => string;
+  onRevoke: () => void;
+}) {
+  const status = keyStatus(apiKey, t);
+  const tenantName = apiKey.tenant_id
+    ? tenants.find((tn) => tn.id === apiKey.tenant_id)?.name ?? t("tenantBadgeUnknown")
+    : t("tenantBadgeSystem");
+
+  return (
+    <Card className="py-0 gap-0">
+      <CardContent className="px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          {/* Left: name + meta */}
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {/* Row 1: name + prefix + status + tenant */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm truncate">{apiKey.name}</span>
+              <code className="text-[10px] text-muted-foreground font-mono">{apiKey.prefix}...***</code>
+              <Badge variant={status.variant} className="text-[10px] shrink-0">{status.label}</Badge>
+              {isCrossTenant && (
+                <Badge variant="outline" className="text-[10px] shrink-0 gap-0.5">
+                  <Building2 className="h-2.5 w-2.5" />
+                  {tenantName}
+                </Badge>
+              )}
+            </div>
+
+            {/* Row 2: scopes + dates */}
+            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Shield className="h-3 w-3 shrink-0" />
+                {apiKey.scopes.map((s) => (
+                  <Badge key={s} variant="secondary" className="text-[10px] font-mono px-1.5 py-0">
+                    {s.replace("operator.", "")}
+                  </Badge>
+                ))}
+              </div>
+              <span className="text-muted-foreground/50">·</span>
+              <span className="flex items-center gap-1" title={fullDateTime(apiKey.created_at)}>
+                <Clock className="h-3 w-3" />
+                {formatRelativeTime(apiKey.created_at)}
+              </span>
+              <span title={apiKey.last_used_at ? fullDateTime(apiKey.last_used_at) : undefined}>
+                {t("columns.lastUsed")}: {apiKey.last_used_at ? formatRelativeTime(apiKey.last_used_at) : t("never")}
+              </span>
+            </div>
+          </div>
+
+          {/* Right: revoke button */}
+          {!apiKey.revoked && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRevoke}
+              className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7"
+              title={t("revoke.confirmLabel")}
+            >
+              <Ban className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ApiKeysPage() {
   const { t } = useTranslation("api-keys");
   const { t: tc } = useTranslation("common");
   const { apiKeys, loading, refresh, createApiKey, revokeApiKey } = useApiKeys();
+  const { isCrossTenant, tenants } = useTenants();
 
   const spinning = useMinLoading(loading);
   const showSkeleton = useDeferredLoading(loading && apiKeys.length === 0);
@@ -80,7 +159,7 @@ export function ApiKeysPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-4 sm:p-6 pb-16">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -107,59 +186,17 @@ export function ApiKeysPage() {
           <EmptyState icon={Key} title={t("emptyTitle")} description={t("emptyDescription")} />
         ) : (
           <>
-            <div className="rounded-md border overflow-x-auto">
-              <table className="w-full min-w-[700px] text-base md:text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.name")}</th>
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.prefix")}</th>
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.scopes")}</th>
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.lastUsed")}</th>
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.created")}</th>
-                    <th className="px-4 py-2 text-left font-medium">{t("columns.status")}</th>
-                    <th className="px-4 py-2 text-right font-medium">{t("columns.actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map((key) => {
-                    const status = keyStatus(key, t);
-                    return (
-                      <tr key={key.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-2 font-medium">{key.name}</td>
-                        <td className="px-4 py-2">
-                          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{key.prefix}...***</code>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-1">
-                            {key.scopes.map((s) => (
-                              <Badge key={s} variant="outline" className="text-xs">
-                                {s.replace("operator.", "")}
-                              </Badge>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-muted-foreground">{formatDate(key.last_used_at)}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{formatDate(key.created_at)}</td>
-                        <td className="px-4 py-2">
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {!key.revoked && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setRevokeTarget(key)}
-                              className="gap-1 text-destructive hover:text-destructive"
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="space-y-2">
+              {pageItems.map((key) => (
+                <ApiKeyCard
+                  key={key.id}
+                  apiKey={key}
+                  isCrossTenant={isCrossTenant}
+                  tenants={tenants}
+                  t={t}
+                  onRevoke={() => setRevokeTarget(key)}
+                />
+              ))}
             </div>
             <Pagination {...pagination} onPageChange={setPage} onPageSizeChange={setPageSize} />
           </>

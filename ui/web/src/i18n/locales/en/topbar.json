@@ -10,6 +10,7 @@
   "pairingRequests": "Pairing requests",
   "pendingPairingRequest": "{{count}} pending pairing request",
   "pendingPairingRequests": "{{count}} pending pairing requests",
+  "apiKeys": "API Keys",
   "languages": {
     "en": "English",
     "vi": "Tiếng Việt",

@@ -14,5 +14,6 @@
   "pairingRequests": "Yêu cầu ghép nối",
   "pendingPairingRequest": "{{count}} yêu cầu ghép nối đang chờ",
   "pendingPairingRequests": "{{count}} yêu cầu ghép nối đang chờ",
+  "apiKeys": "API Keys",
   "toggleTheme": "Chuyển đổi giao diện"
 }

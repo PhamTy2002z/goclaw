@@ -1,4 +1,4 @@
-import { Moon, Sun, PanelLeftClose, PanelLeftOpen, Menu, LogOut, Bell, Globe, Clock, Building2, ChevronDown, Check, User } from "lucide-react";
+import { Moon, Sun, PanelLeftClose, PanelLeftOpen, Menu, LogOut, Bell, Globe, Clock, Building2, ChevronDown, Check, User, KeyRound } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
@@ -115,6 +115,7 @@ function UserMenu() {
   const { currentTenant, currentTenantName, tenants, isCrossTenant, isMultiTenant, currentTenantId } = useTenants();
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const navigate = useNavigate();
 
   const isNilTenant = !currentTenantId || currentTenantId === "00000000-0000-0000-0000-000000000000";
   const tenantLabel = isCrossTenant && isNilTenant
@@ -203,6 +204,17 @@ function UserMenu() {
               <div className="my-1 border-t" />
             </>
           )}
+
+          {/* API Keys shortcut */}
+          <button
+            onClick={() => { setOpen(false); navigate(ROUTES.API_KEYS); }}
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+          >
+            <KeyRound className="h-3.5 w-3.5 shrink-0" />
+            <span>{t("apiKeys")}</span>
+          </button>
+
+          <div className="my-1 border-t" />
 
           {/* Logout */}
           <button
