@@ -1,3 +1,4 @@
+import math
 from typing import Any
 from vnstock import Vnstock
 
@@ -8,9 +9,13 @@ def stock(symbol: str):
 
 def safe_val(v: Any) -> Any:
     try:
-        return v.item()
+        v = v.item()
     except AttributeError:
-        return v
+        pass
+    # Replace NaN/Inf with None for JSON compatibility
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    return v
 
 
 def df_to_records(df) -> list[dict]:
