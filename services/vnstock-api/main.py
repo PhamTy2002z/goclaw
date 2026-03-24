@@ -214,22 +214,8 @@ def get_news(symbol: str):
 
 @app.get("/bonds")
 def get_bonds():
-    """Get bond listings."""
-    key = "all"
-    if cached := cache.get(cache.bond_cache, key):
-        return cached
-    try:
-        df = Vnstock().stock(symbol="ACB", source="VCI").listing.all_symbols(type="bond")
-        if df is None or df.empty:
-            raise HTTPException(404, "No bond data available")
-        records = df_to_records(df)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(502, f"Bond error: {exc}") from exc
-    result = {"data": records}
-    cache.put(cache.bond_cache, key, result)
-    return result
+    """Get bond listings (placeholder — VCI source does not support bond type)."""
+    raise HTTPException(501, "Bond data not yet supported on VCI source")
 
 
 @app.get("/events/{symbol}")
