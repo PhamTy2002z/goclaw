@@ -25,7 +25,7 @@ func NewStockDataTool(baseURL string) *StockDataTool {
 	}
 	return &StockDataTool{
 		baseURL:    strings.TrimRight(baseURL, "/"),
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
