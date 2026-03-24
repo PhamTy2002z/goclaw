@@ -166,8 +166,10 @@ func (s *PGCronStore) UpdateJob(ctx context.Context, jobID string, patch store.C
 		var payloadJSON []byte
 		if scanErr := s.db.QueryRowContext(ctx, "SELECT payload FROM cron_jobs WHERE id = $1"+tenantSuffix, append([]any{id}, tenantArg...)...).Scan(&payloadJSON); scanErr == nil {
 			var payload store.CronPayload
-			if err := json.Unmarshal(payloadJSON, &payload); err != nil {
-				return nil, fmt.Errorf("failed to parse existing payload for job %s: %w", jobID, err)
+			if len(payloadJSON) > 0 {
+				if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+					return nil, fmt.Errorf("failed to parse existing payload for job %s: %w", jobID, err)
+				}
 			}
 
 			if patch.Message != "" {
@@ -186,7 +188,10 @@ func (s *PGCronStore) UpdateJob(ctx context.Context, jobID string, patch store.C
 				payload.WakeHeartbeat = *patch.WakeHeartbeat
 			}
 
-			merged, _ := json.Marshal(payload)
+			merged, err := json.Marshal(payload)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal payload for job %s: %w", jobID, err)
+			}
 			updates["payload"] = merged
 		}
 	}
