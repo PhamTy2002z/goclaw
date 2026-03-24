@@ -32,6 +32,11 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 			Settings: json.RawMessage(`{"extractors":[{"name":"defuddle","enabled":true,"base_url":"https://fetch.goclaw.sh/","max_retries":2},{"name":"html-to-markdown","enabled":true}]}`),
 		},
 
+		// finance
+		{Name: "stock_data", DisplayName: "Stock Data", Description: "Query Vietnam stock market data: realtime prices, OHLCV history, financials, and screening (HOSE/HNX/UPCOM)", Category: "finance", Enabled: false,
+			Metadata: json.RawMessage(`{"config_hint":"Requires vnstock-api sidecar. Set GOCLAW_VNSTOCK_API_URL env var."}`),
+		},
+
 		// memory
 		{Name: "memory_search", DisplayName: "Memory Search", Description: "Search through the agent's long-term memory using semantic similarity", Category: "memory", Enabled: true,
 			Requires: []string{"memory"},

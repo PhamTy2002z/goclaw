@@ -118,6 +118,12 @@ func setupToolRegistry(
 	toolsReg.Register(webFetchTool)
 	slog.Info("web_fetch tool enabled", "policy", cfg.Tools.WebFetch.Policy, "blocked", len(cfg.Tools.WebFetch.BlockedDomains))
 
+	// Stock data tool (vnstock-api sidecar)
+	if vnstockURL := os.Getenv("GOCLAW_VNSTOCK_API_URL"); vnstockURL != "" {
+		toolsReg.Register(tools.NewStockDataTool(vnstockURL))
+		slog.Info("stock_data tool enabled", "url", vnstockURL)
+	}
+
 	// Vision fallback tool (for non-vision providers like MiniMax)
 	toolsReg.Register(tools.NewReadImageTool(providerRegistry))
 	toolsReg.Register(tools.NewCreateImageTool(providerRegistry))

@@ -1,0 +1,34 @@
+# vnstock sidecar — Vietnam stock market data API.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.vnstock.yml up -d
+
+services:
+  vnstock-api:
+    image: vnstock-api:latest
+    build:
+      context: services/vnstock-api
+      dockerfile: Dockerfile
+    ports:
+      - "11235:11235"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11235/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - default
+    restart: unless-stopped
+
+  goclaw:
+    environment:
+      - GOCLAW_VNSTOCK_API_URL=http://vnstock-api:11235
+    depends_on:
+      vnstock-api:
+        condition: service_healthy
