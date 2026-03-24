@@ -37,7 +37,11 @@ func (t *StockDataTool) Description() string {
 - history: Get OHLCV historical data (daily/weekly/monthly)
 - intraday: Get today's intraday price movements
 - financials: Get balance sheet, income statement, or cash flow
-- screening: Search/filter stocks by exchange, industry, volume`
+- screening: Search/filter stocks by exchange
+- indicators: Get technical indicators (SMA, RSI, MACD, EMA, Bollinger, etc.)
+- news: Get latest news articles for a stock symbol
+- bonds: Get bond listings
+- events: Get corporate events (dividends, ex-dates)`
 }
 
 func (t *StockDataTool) Parameters() map[string]any {
@@ -46,7 +50,7 @@ func (t *StockDataTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"action": map[string]any{
 				"type":        "string",
-				"enum":        []string{"price", "history", "intraday", "financials", "screening"},
+				"enum":        []string{"price", "history", "intraday", "financials", "screening", "indicators", "news", "bonds", "events"},
 				"description": "The action to perform",
 			},
 			"symbol": map[string]any{
@@ -89,6 +93,14 @@ func (t *StockDataTool) Parameters() map[string]any {
 				"type":        "integer",
 				"description": "Minimum trading volume filter (screening action only)",
 			},
+			"indicators": map[string]any{
+				"type":        "string",
+				"description": "Comma-separated technical indicators (indicators action). Examples: SMA_20, EMA_12, RSI_14, MACD, BBANDS_20",
+			},
+			"limit": map[string]any{
+				"type":        "integer",
+				"description": "Max results to return (news action, default 10, max 30)",
+			},
 		},
 		"required": []string{"action"},
 	}
@@ -101,7 +113,7 @@ func (t *StockDataTool) Execute(ctx context.Context, args map[string]any) *Resul
 	if action == "" {
 		return ErrorResult("action is required")
 	}
-	if action != "screening" && symbol == "" {
+	if action != "screening" && action != "bonds" && symbol == "" {
 		return ErrorResult("symbol is required for action: " + action)
 	}
 
@@ -143,6 +155,26 @@ func (t *StockDataTool) Execute(ctx context.Context, args map[string]any) *Resul
 		if v, ok := args["min_volume"].(float64); ok {
 			params.Set("min_volume", fmt.Sprintf("%.0f", v))
 		}
+	case "indicators":
+		endpoint = "/indicators/" + symbol
+		if v := getString(args, "indicators"); v != "" {
+			params.Set("indicators", v)
+		}
+		if v := getString(args, "start"); v != "" {
+			params.Set("start", v)
+		}
+		if v := getString(args, "end"); v != "" {
+			params.Set("end", v)
+		}
+	case "news":
+		endpoint = "/news/" + symbol
+		if v, ok := args["limit"].(float64); ok {
+			params.Set("limit", fmt.Sprintf("%.0f", v))
+		}
+	case "bonds":
+		endpoint = "/bonds"
+	case "events":
+		endpoint = "/events/" + symbol
 	default:
 		return ErrorResult("unknown action: " + action)
 	}
