@@ -151,6 +151,7 @@ def get_indicators(
     end: str = Query(default=str(date.today())),
 ):
     """Compute technical indicators on OHLCV data using pandas-ta."""
+    import pandas as pd
     import pandas_ta as ta
 
     sym = symbol.upper()
@@ -162,12 +163,21 @@ def get_indicators(
         if df is None or df.empty:
             raise HTTPException(404, f"No history data for {sym}")
 
-        # Run requested indicators via pandas-ta strategy
         indicator_list = [i.strip() for i in indicators.split(",") if i.strip()]
-        strategy = ta.Strategy(name="custom", ta=_parse_indicators(indicator_list))
-        df.ta.strategy(strategy)
+        for name in indicator_list:
+            parts = name.split("_")
+            kind = parts[0].lower()
+            length = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+            kwargs = {"length": length} if length else {}
+            fn = getattr(ta, kind, None)
+            if fn is None:
+                continue
+            result_series = fn(df["close"], **kwargs)
+            if isinstance(result_series, pd.DataFrame):
+                df = pd.concat([df, result_series], axis=1)
+            elif result_series is not None:
+                df[name] = result_series
 
-        # Drop NaN rows at the start, keep last 60 rows max
         df = df.dropna().tail(60)
         records = df_to_records(df)
     except HTTPException:
@@ -179,40 +189,26 @@ def get_indicators(
     return result
 
 
-def _parse_indicators(names: list[str]) -> list[dict]:
-    """Convert indicator shorthand names to pandas-ta strategy dicts."""
-    result = []
-    for name in names:
-        parts = name.split("_")
-        kind = parts[0].lower()
-        length = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
-        entry = {"kind": kind}
-        if length:
-            entry["length"] = length
-        result.append(entry)
-    return result
-
-
 @app.get("/news/{symbol}")
-def get_news(symbol: str, limit: int = Query(default=10, le=30)):
+def get_news(symbol: str):
     """Get latest news for a stock symbol."""
     sym = symbol.upper()
-    key = f"{sym}:{limit}"
-    if cached := cache.get(cache.news_cache, key):
+    if cached := cache.get(cache.news_cache, sym):
         return cached
     try:
-        from vnstock import Vnstock as V
-        news_source = V().stock(symbol=sym, source="VCI")
-        df = news_source.company.news(limit=limit)
+        df = stock(sym).company.news()
         if df is None or df.empty:
             raise HTTPException(404, f"No news for {sym}")
-        records = df_to_records(df)
+        # Keep only useful columns, drop full HTML content
+        keep = ["news_title", "news_short_content", "news_source_link", "public_date"]
+        cols = [c for c in keep if c in df.columns]
+        records = df_to_records(df[cols]) if cols else df_to_records(df)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(502, f"News error: {exc}") from exc
     result = {"symbol": sym, "data": records}
-    cache.put(cache.news_cache, key, result)
+    cache.put(cache.news_cache, sym, result)
     return result
 
 
@@ -223,8 +219,7 @@ def get_bonds():
     if cached := cache.get(cache.bond_cache, key):
         return cached
     try:
-        from vnstock import Vnstock as V
-        df = V().stock(symbol="ACB", source="VCI").listing.all_symbols(type="bond")
+        df = Vnstock().stock(symbol="ACB", source="VCI").listing.all_symbols(type="bond")
         if df is None or df.empty:
             raise HTTPException(404, "No bond data available")
         records = df_to_records(df)
@@ -239,13 +234,12 @@ def get_bonds():
 
 @app.get("/events/{symbol}")
 def get_events(symbol: str):
-    """Get corporate events (dividends) for a stock symbol."""
+    """Get corporate events for a stock symbol."""
     sym = symbol.upper()
     if cached := cache.get(cache.event_cache, sym):
         return cached
     try:
-        s = stock(sym)
-        df = s.company.dividends()
+        df = stock(sym).company.events()
         if df is None or df.empty:
             raise HTTPException(404, f"No event data for {sym}")
         records = df_to_records(df)
