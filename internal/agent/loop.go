@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/safego"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -40,9 +40,12 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		l.emit(event)
 	}
 
-	// Inject agent UUID into context for tool routing
+	// Inject agent UUID + key into context for tool routing
 	if l.agentUUID != uuid.Nil {
 		ctx = store.WithAgentID(ctx, l.agentUUID)
+	}
+	if l.id != "" {
+		ctx = store.WithAgentKey(ctx, l.id)
 	}
 	// Inject tenant into context for tool-level tenant scoping (spawn, MCP, etc.)
 	if l.tenantID != uuid.Nil {
@@ -1141,23 +1144,14 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 				wg.Add(1)
 				go func(idx int, tc providers.ToolCall) {
 					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							buf := make([]byte, 4096)
-							n := runtime.Stack(buf, false)
-							slog.Error("tool goroutine panicked",
-								"agent", l.id, "tool", tc.Name,
-								"panic", fmt.Sprint(r),
-								"stack", string(buf[:n]),
-							)
-							resultCh <- indexedResult{
-								idx:          idx,
-								tc:           tc,
-								registryName: tc.Name,
-								result:       tools.ErrorResult(fmt.Sprintf("tool %q panicked: %v", tc.Name, r)),
-							}
+					defer safego.Recover(func(v any) {
+						resultCh <- indexedResult{
+							idx:          idx,
+							tc:           tc,
+							registryName: tc.Name,
+							result:       tools.ErrorResult(fmt.Sprintf("tool %q panicked: %v", tc.Name, v)),
 						}
-					}()
+					}, "agent", l.id, "tool", tc.Name)
 					argsJSON, _ := json.Marshal(tc.Arguments)
 					slog.Info("tool call", "agent", l.id, "tool", tc.Name, "args_len", len(argsJSON), "parallel", true)
 					spanStart := time.Now().UTC()

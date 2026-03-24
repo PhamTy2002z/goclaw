@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
 	"github.com/adhocore/gronx"
+
+	"github.com/nextlevelbuilder/goclaw/internal/safego"
 )
 
 // RunJob manually triggers a job execution.
@@ -183,17 +184,7 @@ func (cs *Service) checkJobs() {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					buf := make([]byte, 4096)
-					n := runtime.Stack(buf, false)
-					slog.Error("cron job panicked",
-						"job_id", id,
-						"panic", fmt.Sprint(r),
-						"stack", string(buf[:n]),
-					)
-				}
-			}()
+			defer safego.Recover(nil, "job_id", id)
 			cs.executeJobByID(id)
 		}(jobID)
 	}

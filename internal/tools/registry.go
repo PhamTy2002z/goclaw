@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/safego"
 )
 
 // Registry manages tool registration and execution.
@@ -205,18 +205,9 @@ func (r *Registry) ExecuteWithContext(ctx context.Context, name string, args map
 // safeExecute runs tool.Execute with panic recovery. A panicking tool returns
 // an error result instead of crashing the process.
 func safeExecute(tool Tool, ctx context.Context, args map[string]any) (result *Result) {
-	defer func() {
-		if r := recover(); r != nil {
-			buf := make([]byte, 4096)
-			n := runtime.Stack(buf, false)
-			slog.Error("tool panicked",
-				"tool", tool.Name(),
-				"panic", fmt.Sprint(r),
-				"stack", string(buf[:n]),
-			)
-			result = ErrorResult(fmt.Sprintf("tool %q panicked: %v", tool.Name(), r))
-		}
-	}()
+	defer safego.Recover(func(v any) {
+		result = ErrorResult(fmt.Sprintf("tool %q panicked: %v", tool.Name(), v))
+	}, "tool", tool.Name())
 	return tool.Execute(ctx, args)
 }
 
