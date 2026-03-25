@@ -144,8 +144,8 @@ func WithSelfEvolve(ctx context.Context, v bool) context.Context {
 
 // SelfEvolveFromContext extracts the self-evolve flag from context. Returns false if not set.
 func SelfEvolveFromContext(ctx context.Context) bool {
-	if v, ok := ctx.Value(SelfEvolveKey).(bool); ok && v {
-		return true
+	if v, ok := ctx.Value(SelfEvolveKey).(bool); ok {
+		return v
 	}
 	if rc := RunContextFromCtx(ctx); rc != nil {
 		return rc.SelfEvolve
@@ -160,8 +160,8 @@ func WithSharedMemory(ctx context.Context) context.Context {
 
 // IsSharedMemory returns true if memory should be shared across users.
 func IsSharedMemory(ctx context.Context) bool {
-	if v, _ := ctx.Value(SharedMemoryKey).(bool); v {
-		return true
+	if v, ok := ctx.Value(SharedMemoryKey).(bool); ok {
+		return v
 	}
 	if rc := RunContextFromCtx(ctx); rc != nil {
 		return rc.SharedMemory
@@ -194,8 +194,8 @@ func WithSharedKG(ctx context.Context) context.Context {
 
 // IsSharedKG returns true if the knowledge graph should be shared across users.
 func IsSharedKG(ctx context.Context) bool {
-	if v, _ := ctx.Value(SharedKGKey).(bool); v {
-		return true
+	if v, ok := ctx.Value(SharedKGKey).(bool); ok {
+		return v
 	}
 	if rc := RunContextFromCtx(ctx); rc != nil {
 		return rc.SharedKG
