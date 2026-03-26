@@ -43,6 +43,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
   const [providerType, setProviderType] = useState("openai_compat");
   const [apiBase, setApiBase] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [defaultModel, setDefaultModel] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +69,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
       setProviderType("openai_compat");
       setApiBase("");
       setApiKey("");
+      setDefaultModel("");
       setEnabled(true);
       setAcpBinary("");
       setAcpArgs("");
@@ -86,6 +88,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
         display_name: displayName.trim() || undefined,
         provider_type: providerType,
         api_base: apiBase.trim() || undefined,
+        default_model: defaultModel.trim() || undefined,
         enabled,
       };
 
@@ -221,6 +224,17 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder={t("form.apiKeyPlaceholder")}
+                      className="text-base md:text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultModel">{t("form.defaultModel")}</Label>
+                    <Input
+                      id="defaultModel"
+                      value={defaultModel}
+                      onChange={(e) => setDefaultModel(e.target.value)}
+                      placeholder={t("form.defaultModelPlaceholder")}
                       className="text-base md:text-sm"
                     />
                   </div>

@@ -2,9 +2,12 @@ import math
 from typing import Any
 from vnstock import Vnstock
 
+# Singleton Vnstock instance — avoids re-initializing on every request
+_vnstock = Vnstock()
+
 
 def stock(symbol: str):
-    return Vnstock().stock(symbol=symbol, source="VCI")
+    return _vnstock.stock(symbol=symbol, source="VCI")
 
 
 def safe_val(v: Any) -> Any:

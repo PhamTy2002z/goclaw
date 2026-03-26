@@ -42,6 +42,8 @@
     "apiKeyEditPlaceholder": "保持不变或输入新密钥",
     "apiKeySetHint": "API 密钥已设置。清除并输入新值以更改。",
     "apiBase": "API 基础 URL",
+    "defaultModel": "默认模型",
+    "defaultModelPlaceholder": "例如 gpt-4o, claude-sonnet-4-5-20250929",
     "enabled": "已启用",
     "cancel": "取消",
     "close": "关闭",

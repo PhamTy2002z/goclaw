@@ -42,6 +42,8 @@
     "apiKeyEditPlaceholder": "Giữ nguyên hoặc nhập khóa mới",
     "apiKeySetHint": "API key đã được thiết lập. Xóa và nhập giá trị mới để thay đổi.",
     "apiBase": "API Base URL",
+    "defaultModel": "Model mặc định",
+    "defaultModelPlaceholder": "vd: gpt-4o, claude-sonnet-4-5-20250929",
     "enabled": "Bật",
     "cancel": "Hủy",
     "close": "Đóng",

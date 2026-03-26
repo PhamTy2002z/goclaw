@@ -17,6 +17,7 @@ export interface ProviderInput {
   provider_type: string;
   api_base?: string;
   api_key?: string;
+  default_model?: string;
   enabled?: boolean;
   settings?: Record<string, unknown>;
 }

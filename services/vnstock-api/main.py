@@ -1,7 +1,8 @@
 from datetime import date
 
+import pandas as pd
+import pandas_ta as ta
 from fastapi import FastAPI, HTTPException, Query
-from vnstock import Vnstock
 
 import cache
 from helpers import stock, df_to_records, safe_val
@@ -124,7 +125,7 @@ def get_screening(exchange: str = Query(default="")):
     if cached := cache.get(cache.screening_cache, key):
         return cached
     try:
-        df = Vnstock().stock(symbol="ACB", source="VCI").listing.all_symbols()
+        df = stock("ACB").listing.all_symbols()
         if df is None or df.empty:
             raise HTTPException(502, "No listing data available")
         records = df_to_records(df)
@@ -151,9 +152,6 @@ def get_indicators(
     end: str = Query(default=str(date.today())),
 ):
     """Compute technical indicators on OHLCV data using pandas-ta."""
-    import pandas as pd
-    import pandas_ta as ta
-
     sym = symbol.upper()
     key = f"{sym}:{indicators}:{start}:{end}"
     if cached := cache.get(cache.indicator_cache, key):

@@ -42,6 +42,8 @@
     "apiKeyEditPlaceholder": "Leave as-is or enter new key",
     "apiKeySetHint": "API key is set. Clear and type a new value to change it.",
     "apiBase": "API Base URL",
+    "defaultModel": "Default Model",
+    "defaultModelPlaceholder": "e.g. gpt-4o, claude-sonnet-4-5-20250929",
     "enabled": "Enabled",
     "cancel": "Cancel",
     "close": "Close",
