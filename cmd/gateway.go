@@ -124,7 +124,26 @@ func runGateway() {
 		registerProvidersFromDB(providerRegistry, pgStores.Providers, pgStores.ConfigSecrets, dbGatewayAddr, cfg.Gateway.Token, pgStores.MCP, cfg)
 	}
 
-	setupMemoryEmbeddings(cfg, pgStores, providerRegistry)
+	// Warn if deprecated session scope settings are configured
+	if cfg.Sessions.Scope != "" && cfg.Sessions.Scope != "per-sender" {
+		slog.Warn("sessions.scope config is deprecated and ignored — fixed to per-sender", "configured", cfg.Sessions.Scope)
+	}
+	if cfg.Sessions.DmScope != "" && cfg.Sessions.DmScope != "per-channel-peer" {
+		slog.Warn("sessions.dm_scope config is deprecated and ignored — fixed to per-channel-peer", "configured", cfg.Sessions.DmScope)
+	}
+
+	seedSystemConfigs(pgStores.SystemConfigs, pgStores.Tenants, cfg)
+	// Read back system_configs from DB and overlay onto in-memory config.
+	// This ensures runtime components read DB values via cfg.* without needing direct DB access.
+	if pgStores.SystemConfigs != nil {
+		if sysConfigs, err := pgStores.SystemConfigs.List(
+			store.WithTenantID(context.Background(), store.MasterTenantID),
+		); err == nil && len(sysConfigs) > 0 {
+			cfg.ApplySystemConfigs(sysConfigs)
+			slog.Info("system_configs applied to in-memory config", "keys", len(sysConfigs))
+		}
+	}
+	setupMemoryEmbeddings(pgStores, providerRegistry)
 
 	loadBootstrapFiles(pgStores, workspace, agentCfg)
 
@@ -289,7 +308,7 @@ func runGateway() {
 	server.SetPolicyEngine(permPE)
 	server.SetPairingService(pgStores.Pairing)
 	server.SetMessageBus(msgBus)
-	server.SetOAuthHandler(httpapi.NewOAuthHandler(cfg.Gateway.Token, pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
+	server.SetOAuthHandler(httpapi.NewOAuthHandler(pgStores.Providers, pgStores.ConfigSecrets, providerRegistry, msgBus))
 
 	// contextFileInterceptor is created inside wireExtras.
 	// Declared here so it can be passed to registerAllMethods → AgentsMethods
@@ -313,7 +332,8 @@ func runGateway() {
 	if mcpMgr != nil {
 		mcpToolLister = mcpMgr
 	}
-	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Gateway.Token, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
+	httpapi.InitGatewayToken(cfg.Gateway.Token)
+	agentsH, skillsH, tracesH, mcpH, channelInstancesH, providersH, builtinToolsH, pendingMessagesH, teamEventsH, secureCLIH, mcpUserCredsH := wireHTTP(pgStores, cfg.Agents.Defaults.Workspace, dataDir, bundledSkillsDir, msgBus, toolsReg, providerRegistry, permPE.IsOwner, gatewayAddr, mcpToolLister)
 	if providersH != nil {
 		providersH.SetAPIBaseFallback(cfg.Providers.APIBaseForType)
 	}
@@ -327,7 +347,7 @@ func runGateway() {
 		server.SetTracesHandler(tracesH)
 	}
 	// External wake/trigger API
-	wakeH := httpapi.NewWakeHandler(agentRouter, cfg.Gateway.Token)
+	wakeH := httpapi.NewWakeHandler(agentRouter)
 	if postTurn != nil {
 		wakeH.SetPostTurnProcessor(postTurn)
 	}
@@ -351,7 +371,8 @@ func runGateway() {
 		server.SetTeamEventsHandler(teamEventsH)
 	}
 	if pgStores != nil && pgStores.Teams != nil {
-		server.SetTeamAttachmentsHandler(httpapi.NewTeamAttachmentsHandler(pgStores.Teams, cfg.Gateway.Token, workspace))
+		server.SetTeamAttachmentsHandler(httpapi.NewTeamAttachmentsHandler(pgStores.Teams, workspace))
+		server.SetWorkspaceUploadHandler(httpapi.NewWorkspaceUploadHandler(pgStores.Teams, workspace, msgBus))
 	}
 	if builtinToolsH != nil {
 		server.SetBuiltinToolsHandler(builtinToolsH)
@@ -371,23 +392,49 @@ func runGateway() {
 
 	// Activity audit log API
 	if pgStores.Activity != nil {
-		server.SetActivityHandler(httpapi.NewActivityHandler(pgStores.Activity, cfg.Gateway.Token))
+		server.SetActivityHandler(httpapi.NewActivityHandler(pgStores.Activity))
+	}
+
+	// System configs API
+	if pgStores.SystemConfigs != nil {
+		server.SetSystemConfigsHandler(httpapi.NewSystemConfigsHandler(pgStores.SystemConfigs, msgBus))
+
+		// Refresh in-memory config when system_configs change via HTTP API
+		msgBus.Subscribe(bus.TopicSystemConfigChanged, func(evt bus.Event) {
+			// Use tenant context from the request that triggered the change
+			ctx := context.Background()
+			if reqCtx, ok := evt.Payload.(context.Context); ok {
+				ctx = reqCtx
+			} else {
+				ctx = store.WithTenantID(ctx, store.MasterTenantID)
+			}
+			if sysConfigs, err := pgStores.SystemConfigs.List(ctx); err == nil && len(sysConfigs) > 0 {
+				cfg.ApplySystemConfigs(sysConfigs)
+				// Update PGMemoryStore chunk config so new documents use updated settings
+				if mem := cfg.Agents.Defaults.Memory; mem != nil {
+					if pgMem, ok := pgStores.Memory.(*pg.PGMemoryStore); ok {
+						pgMem.UpdateChunkConfig(mem.MaxChunkLen, mem.ChunkOverlap)
+					}
+				}
+				slog.Debug("system_configs refreshed to in-memory config", "keys", len(sysConfigs))
+			}
+		})
 	}
 
 	// Usage analytics API
 	if pgStores.Snapshots != nil {
-		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB, cfg.Gateway.Token))
+		server.SetUsageHandler(httpapi.NewUsageHandler(pgStores.Snapshots, pgStores.DB))
 	}
 
 	// Runtime package management (install/uninstall system/pip/npm packages)
-	server.SetPackagesHandler(httpapi.NewPackagesHandler(cfg.Gateway.Token))
+	server.SetPackagesHandler(httpapi.NewPackagesHandler())
 
 	// API key management
 	// API documentation (OpenAPI spec + Swagger UI at /docs)
-	server.SetDocsHandler(httpapi.NewDocsHandler(cfg.Gateway.Token))
+	server.SetDocsHandler(httpapi.NewDocsHandler())
 
 	if pgStores != nil && pgStores.APIKeys != nil {
-		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, cfg.Gateway.Token, msgBus))
+		server.SetAPIKeysHandler(httpapi.NewAPIKeysHandler(pgStores.APIKeys, msgBus))
 		server.SetAPIKeyStore(pgStores.APIKeys)
 		httpapi.InitAPIKeyCache(pgStores.APIKeys, msgBus)
 	}
@@ -399,29 +446,29 @@ func runGateway() {
 
 	// Memory management API (wired directly, only needs MemoryStore + token)
 	if pgStores != nil && pgStores.Memory != nil {
-		server.SetMemoryHandler(httpapi.NewMemoryHandler(pgStores.Memory, cfg.Gateway.Token))
+		server.SetMemoryHandler(httpapi.NewMemoryHandler(pgStores.Memory))
 	}
 
 	// Knowledge graph API
 	if pgStores != nil && pgStores.KnowledgeGraph != nil {
-		server.SetKnowledgeGraphHandler(httpapi.NewKnowledgeGraphHandler(pgStores.KnowledgeGraph, providerRegistry, cfg.Gateway.Token))
+		server.SetKnowledgeGraphHandler(httpapi.NewKnowledgeGraphHandler(pgStores.KnowledgeGraph, providerRegistry))
 	}
 
 	// Workspace file serving endpoint — serves files by absolute path, auth-token protected.
 	// Supports media from any agent workspace (each agent has its own workspace from DB).
-	server.SetFilesHandler(httpapi.NewFilesHandler(cfg.Gateway.Token, workspace, dataDir))
+	server.SetFilesHandler(httpapi.NewFilesHandler(workspace, dataDir))
 
 	// Storage file management — browse/delete files under the resolved workspace directory.
 	// Uses GOCLAW_WORKSPACE (or default ~/.goclaw/workspace) so it works correctly
 	// in Docker deployments where volumes are mounted outside ~/.goclaw/.
-	server.SetStorageHandler(httpapi.NewStorageHandler(workspace, cfg.Gateway.Token))
+	server.SetStorageHandler(httpapi.NewStorageHandler(workspace))
 
 	// Media upload endpoint — accepts multipart file uploads, returns temp path + MIME type.
-	server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler(cfg.Gateway.Token))
+	server.SetMediaUploadHandler(httpapi.NewMediaUploadHandler())
 
 	// Media serve endpoint — serves persisted media files by ID for WS/web clients.
 	if mediaStore != nil {
-		server.SetMediaServeHandler(httpapi.NewMediaServeHandler(mediaStore, cfg.Gateway.Token))
+		server.SetMediaServeHandler(httpapi.NewMediaServeHandler(mediaStore))
 	}
 
 	// Seed + apply builtin tool disables
@@ -434,7 +481,7 @@ func runGateway() {
 
 	// Register all RPC methods
 	server.SetLogTee(logTee)
-	pairingMethods, heartbeatMethods, chatMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions)
+	pairingMethods, heartbeatMethods, chatMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs)
 
 	// Wire post-turn processor for team task dispatch (WS chat.send + HTTP API paths).
 	if postTurn != nil {
@@ -456,10 +503,13 @@ func runGateway() {
 	// Channel manager
 	channelMgr := channels.NewManager(msgBus)
 
-	// Wire channel sender on message tool (now that channelMgr exists)
+	// Wire channel sender + tenant checker on message tool (now that channelMgr exists)
 	if t, ok := toolsReg.Get("message"); ok {
 		if cs, ok := t.(tools.ChannelSenderAware); ok {
 			cs.SetChannelSender(channelMgr.SendToChannel)
+		}
+		if tc, ok := t.(tools.ChannelTenantCheckerAware); ok {
+			tc.SetChannelTenantChecker(channelMgr.ChannelTenantID)
 		}
 	}
 	// Wire group member lister on list_group_members tool
@@ -482,7 +532,7 @@ func runGateway() {
 		instanceLoader.RegisterFactory(channels.TypeZaloPersonal, zalopersonal.FactoryWithPendingStore(pgStores.PendingMessages))
 		instanceLoader.RegisterFactory(channels.TypeWhatsApp, whatsapp.Factory)
 		instanceLoader.RegisterFactory(channels.TypeSlack, slackchannel.FactoryWithPendingStore(pgStores.PendingMessages))
-		if err := instanceLoader.LoadAll(store.WithCrossTenant(context.Background())); err != nil {
+		if err := instanceLoader.LoadAll(context.Background()); err != nil {
 			slog.Error("failed to load channel instances from DB", "error", err)
 		}
 	}
@@ -601,6 +651,7 @@ func runGateway() {
 					AgentID:  meta.LeadAgent,
 					UserID:   meta.UserID,
 					Content:  leaderContent,
+					Metadata: map[string]string{"run_kind": tools.RunKindNotification},
 				})
 			} else {
 				msgBus.PublishOutbound(bus.OutboundMessage{
@@ -643,7 +694,7 @@ func runGateway() {
 			if err != nil {
 				return
 			}
-			team, err := notifyTeamStore.GetTeam(store.WithCrossTenant(context.Background()), teamUUID)
+			team, err := notifyTeamStore.GetTeamUnscoped(context.Background(), teamUUID)
 			if err != nil || team == nil {
 				return
 			}
@@ -685,7 +736,7 @@ func runGateway() {
 			// Resolve lead agent key (needed for leader mode routing + completed-by-leader skip).
 			var leadAgentKey string
 			if notifyAgentStore != nil {
-				if la, err := notifyAgentStore.GetByID(store.WithCrossTenant(context.Background()), team.LeadAgentID); err == nil {
+				if la, err := notifyAgentStore.GetByIDUnscoped(context.Background(), team.LeadAgentID); err == nil {
 					leadAgentKey = la.AgentKey
 				}
 			}
@@ -788,7 +839,7 @@ func runGateway() {
 	defer sched.Stop()
 
 	// Start cron service with job handler (routes through scheduler's cron lane)
-	pgStores.Cron.SetOnJob(makeCronJobHandler(sched, msgBus, cfg, channelMgr))
+	pgStores.Cron.SetOnJob(makeCronJobHandler(sched, msgBus, cfg, channelMgr, pgStores.Sessions))
 	pgStores.Cron.SetOnEvent(func(event store.CronEvent) {
 		server.BroadcastEvent(*protocol.NewEvent(protocol.EventCron, event))
 	})
@@ -907,7 +958,7 @@ func runGateway() {
 	// Tenant management RPC + HTTP
 	if pgStores.Tenants != nil {
 		methods.NewTenantsMethods(pgStores.Tenants, msgBus, workspace).Register(server.Router())
-		server.SetTenantsHandler(httpapi.NewTenantsHandler(pgStores.Tenants, cfg.Gateway.Token, msgBus, workspace))
+		server.SetTenantsHandler(httpapi.NewTenantsHandler(pgStores.Tenants, msgBus, workspace))
 		server.Router().SetTenantStore(pgStores.Tenants)
 		// Permission cache for tenant membership checks (tenant role, agent access, etc.)
 		permCache := cache.NewPermissionCache()
@@ -1055,6 +1106,14 @@ func runGateway() {
 	// Phase 1: suggest localhost binding when Tailscale is active
 	if cfg.Tailscale.Hostname != "" && cfg.Gateway.Host == "0.0.0.0" {
 		slog.Info("Tailscale enabled. Consider setting GOCLAW_HOST=127.0.0.1 for localhost-only + Tailscale access")
+	}
+
+	// Security warnings
+	if strings.Contains(cfg.Database.PostgresDSN, ":goclaw@") {
+		slog.Warn("security.default_db_password: using default Postgres password — run ./prepare-env.sh to generate a strong one")
+	}
+	if len(cfg.Gateway.AllowedOrigins) == 0 {
+		slog.Warn("security.cors_open: no allowed_origins configured — all WebSocket origins accepted. Set gateway.allowed_origins for production")
 	}
 
 	if err := server.Start(ctx); err != nil {

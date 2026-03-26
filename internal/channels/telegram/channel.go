@@ -42,10 +42,12 @@ type Channel struct {
 	groupHistory     *channels.PendingHistory
 	historyLimit     int
 	requireMention   bool
+	mentionMode      string // "strict" (default) or "yield"
 	pollCancel       context.CancelFunc // cancels the long polling context
 	pollDone         chan struct{}       // closed when polling goroutine exits
 	handlerWg        sync.WaitGroup     // tracks in-flight handler goroutines for graceful shutdown
 	handlerSem       chan struct{}       // bounded semaphore for concurrent handler goroutines
+	pendingDraftID   sync.Map           // localKey string → int (draftID)
 }
 
 type thinkingCancel struct {
@@ -113,6 +115,15 @@ func New(cfg config.TelegramConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 		historyLimit = channels.DefaultGroupHistoryLimit
 	}
 
+	mentionMode := cfg.MentionMode
+	if mentionMode == "" {
+		mentionMode = "strict"
+	}
+	if mentionMode != "strict" && mentionMode != "yield" {
+		slog.Warn("telegram: unknown mention_mode, defaulting to strict", "value", mentionMode)
+		mentionMode = "strict"
+	}
+
 	return &Channel{
 		BaseChannel:     base,
 		bot:             bot,
@@ -126,6 +137,7 @@ func New(cfg config.TelegramConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 		groupHistory:    channels.MakeHistory(channels.TypeTelegram, pendingStore, base.TenantID()),
 		historyLimit:    historyLimit,
 		requireMention:  requireMention,
+		mentionMode:     mentionMode,
 	}, nil
 }
 

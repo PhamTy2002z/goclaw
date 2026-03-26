@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/oauth"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -20,24 +21,29 @@ import (
 type ProvidersHandler struct {
 	store           store.ProviderStore
 	secretStore     store.ConfigSecretsStore
-	token           string
 	providerReg     *providers.Registry
 	gatewayAddr     string                         // for injecting MCP bridge into Claude CLI providers
 	mcpLookup       providers.MCPServerLookup       // optional: resolves per-agent MCP servers
 	apiBaseFallback func(providerType string) string // optional: config/env fallback for api_base
 	cliMu           sync.Mutex                      // serializes Claude CLI provider create to prevent duplicates
 	msgBus          *bus.MessageBus
+	sysConfigStore  store.SystemConfigStore
 }
 
 // NewProvidersHandler creates a handler for provider management endpoints.
-func NewProvidersHandler(s store.ProviderStore, secretStore store.ConfigSecretsStore, token string, providerReg *providers.Registry, gatewayAddr string) *ProvidersHandler {
-	return &ProvidersHandler{store: s, secretStore: secretStore, token: token, providerReg: providerReg, gatewayAddr: gatewayAddr}
+func NewProvidersHandler(s store.ProviderStore, secretStore store.ConfigSecretsStore, providerReg *providers.Registry, gatewayAddr string) *ProvidersHandler {
+	return &ProvidersHandler{store: s, secretStore: secretStore, providerReg: providerReg, gatewayAddr: gatewayAddr}
 }
 
 // SetMessageBus sets the message bus for audit event broadcasting.
 // Must be called before serving requests (not thread-safe).
 func (h *ProvidersHandler) SetMessageBus(msgBus *bus.MessageBus) {
 	h.msgBus = msgBus
+}
+
+// SetSystemConfigStore sets the system config store for embedding status checks.
+func (h *ProvidersHandler) SetSystemConfigStore(s store.SystemConfigStore) {
+	h.sysConfigStore = s
 }
 
 // SetMCPServerLookup sets the per-agent MCP server lookup for Claude CLI providers.
@@ -89,13 +95,17 @@ func (h *ProvidersHandler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Provider + model verification (pre-flight check)
 	mux.HandleFunc("POST /v1/providers/{id}/verify", h.auth(h.handleVerifyProvider))
+	mux.HandleFunc("POST /v1/providers/{id}/verify-embedding", h.auth(h.handleVerifyEmbedding))
+
+	// Embedding system status
+	mux.HandleFunc("GET /v1/embedding/status", h.auth(h.handleEmbeddingStatus))
 
 	// Claude CLI auth status (global — not per-provider)
 	mux.HandleFunc("GET /v1/providers/claude-cli/auth-status", h.auth(h.handleClaudeCLIAuthStatus))
 }
 
 func (h *ProvidersHandler) auth(next http.HandlerFunc) http.HandlerFunc {
-	return requireAuth(h.token, "", next)
+	return requireAuth("", next)
 }
 
 // maskAPIKey replaces non-empty API keys with "***".
@@ -125,11 +135,21 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		var cliOpts []providers.ClaudeCLIOption
 		cliOpts = append(cliOpts, providers.WithClaudeCLISecurityHooks("", true))
 		if h.gatewayAddr != "" {
-			mcpData := providers.BuildCLIMCPConfigData(nil, h.gatewayAddr, h.token)
+			mcpData := providers.BuildCLIMCPConfigData(nil, h.gatewayAddr, pkgGatewayToken)
 			mcpData.AgentMCPLookup = h.mcpLookup
 			cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfigData(mcpData))
 		}
 		h.providerReg.RegisterForTenant(p.TenantID, providers.NewClaudeCLIProvider(cliPath, cliOpts...))
+		return
+	}
+	// Ollama doesn't need an API key — handle before the key guard (same as startup).
+	// In Docker, swap localhost → host.docker.internal so the container can reach the host.
+	if p.ProviderType == store.ProviderOllama {
+		host := p.APIBase
+		if host == "" {
+			host = "http://localhost:11434"
+		}
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host+"/v1"), "llama3.3"))
 		return
 	}
 	if p.APIKey == "" {
